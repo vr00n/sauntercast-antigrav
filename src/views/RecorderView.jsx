@@ -47,7 +47,7 @@ export const RecorderView = () => {
     const currentLocation = locations.length > 0 ? locations[locations.length - 1] : null;
 
     return (
-        <div className="flex flex-col h-screen bg-white">
+        <div className="flex flex-col h-[100dvh] bg-white overflow-hidden">
             {/* Header */}
             <div className="p-4 border-b flex justify-between items-center bg-white z-10">
                 <button onClick={() => navigate('/')} className="text-blue-500">Back</button>
