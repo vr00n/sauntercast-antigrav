@@ -25,12 +25,6 @@ export const PlayerView = () => {
                 if (rec) {
                     console.log("Recording loaded:", rec);
                     setRecording(rec);
-                    // Create object URL for audio
-                    if (audioRef.current) {
-                        const url = URL.createObjectURL(rec.audioBlob);
-                        console.log("Audio URL created:", url);
-                        audioRef.current.src = url;
-                    }
                 } else {
                     console.error("Recording not found for id:", id);
                 }
@@ -40,6 +34,20 @@ export const PlayerView = () => {
         };
         load();
     }, [id]);
+
+    // Set audio source when recording is loaded and ref is available
+    useEffect(() => {
+        if (recording && audioRef.current) {
+            const url = URL.createObjectURL(recording.audioBlob);
+            console.log("Setting audio src:", url);
+            audioRef.current.src = url;
+
+            // Cleanup
+            return () => {
+                URL.revokeObjectURL(url);
+            };
+        }
+    }, [recording]);
 
     // Sync loop
     useEffect(() => {
