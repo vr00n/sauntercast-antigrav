@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getRecordings, deleteRecording } from '../utils/storage';
 import { Plus, Clock, MapPin, Trash2, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
+import { APP_VERSION } from '../utils/version';
 
 export const HomeView = () => {
     const [recordings, setRecordings] = useState([]);
@@ -37,6 +38,7 @@ export const HomeView = () => {
             <div className="bg-white p-6 pt-12 border-b sticky top-0 z-10">
                 <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sauntercast</h1>
                 <p className="text-gray-500 text-sm mt-1">Your audio journeys</p>
+                <div className="text-[10px] text-gray-300 font-mono absolute right-6 top-6">{APP_VERSION}</div>
             </div>
 
             <div className="p-4 space-y-4">

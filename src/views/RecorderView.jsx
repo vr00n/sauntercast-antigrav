@@ -4,6 +4,7 @@ import { MapDisplay } from '../components/MapDisplay';
 import { Mic, Square, Save, MessageSquare, MapPin } from 'lucide-react';
 import { saveRecording } from '../utils/storage';
 import { useNavigate } from 'react-router-dom';
+import { APP_VERSION } from '../utils/version';
 
 export const RecorderView = () => {
     const {
@@ -52,7 +53,7 @@ export const RecorderView = () => {
             <div className="p-4 border-b flex justify-between items-center bg-white z-10">
                 <button onClick={() => navigate('/')} className="text-blue-500">Back</button>
                 <div className="font-mono text-xl font-medium">{formatTime(duration)}</div>
-                <div className="w-10"></div> {/* Spacer */}
+                <div className="text-[10px] text-gray-300 font-mono absolute right-4 top-1">{APP_VERSION}</div>
             </div>
 
             {/* Main Content */}

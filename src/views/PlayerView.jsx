@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getRecording } from '../utils/storage';
 import { MapDisplay } from '../components/MapDisplay';
 import { Play, Pause, SkipBack, SkipForward, X, Share2, Info } from 'lucide-react';
+import { APP_VERSION } from '../utils/version';
 
 export const PlayerView = () => {
     const { id } = useParams();
@@ -18,13 +19,23 @@ export const PlayerView = () => {
 
     useEffect(() => {
         const load = async () => {
-            const rec = await getRecording(id);
-            if (rec) {
-                setRecording(rec);
-                // Create object URL for audio
-                if (audioRef.current) {
-                    audioRef.current.src = URL.createObjectURL(rec.audioBlob);
+            console.log("Loading recording:", id);
+            try {
+                const rec = await getRecording(id);
+                if (rec) {
+                    console.log("Recording loaded:", rec);
+                    setRecording(rec);
+                    // Create object URL for audio
+                    if (audioRef.current) {
+                        const url = URL.createObjectURL(rec.audioBlob);
+                        console.log("Audio URL created:", url);
+                        audioRef.current.src = url;
+                    }
+                } else {
+                    console.error("Recording not found for id:", id);
                 }
+            } catch (err) {
+                console.error("Error loading recording:", err);
             }
         };
         load();
@@ -38,7 +49,6 @@ export const PlayerView = () => {
                 setCurrentTime(audioRef.current.currentTime);
 
                 // Find location at this time
-                // Simple linear search for MVP - optimization: binary search or keep index state
                 const loc = recording.locations.find(l => l.timestamp >= time);
                 if (loc) {
                     setCurrentLocation(loc);
@@ -61,17 +71,21 @@ export const PlayerView = () => {
 
     const togglePlay = async () => {
         const audio = audioRef.current;
+        console.log("Toggle play clicked. Audio ref:", audio);
         if (!audio) return;
 
         if (isPlaying) {
+            console.log("Pausing audio...");
             audio.pause();
             setIsPlaying(false);
         } else {
+            console.log("Attempting to play audio...");
             try {
                 await audio.play();
+                console.log("Audio playing successfully");
                 setIsPlaying(true);
             } catch (err) {
-                console.error("Playback failed", err);
+                console.error("Playback failed:", err);
                 setIsPlaying(false);
             }
         }
@@ -93,8 +107,6 @@ export const PlayerView = () => {
         let closestPoint = null;
 
         recording.locations.forEach(loc => {
-            // Simple Euclidean distance for now (sufficient for small areas)
-            // For better accuracy use Haversine
             const d = Math.sqrt(Math.pow(loc.lat - latlng.lat, 2) + Math.pow(loc.lng - latlng.lng, 2));
             if (d < minDist) {
                 minDist = d;
@@ -119,20 +131,27 @@ export const PlayerView = () => {
     if (!recording) return <div className="p-8 text-center">Loading...</div>;
 
     return (
-        <div className="flex flex-col h-screen bg-white">
+        <div className="flex flex-col h-[100dvh] bg-white overflow-hidden">
             <audio
                 key={recording.id}
                 ref={audioRef}
-                onEnded={() => setIsPlaying(false)}
+                onEnded={() => {
+                    console.log("Audio ended");
+                    setIsPlaying(false);
+                }}
+                onPlay={() => console.log("Audio event: play")}
+                onPause={() => console.log("Audio event: pause")}
+                onError={(e) => console.error("Audio event: error", e)}
+                onLoadedMetadata={() => console.log("Audio event: loadedmetadata")}
                 playbackRate={playbackRate}
                 playsInline
             />
 
             {/* Map Area */}
-            <div className="flex-1 relative">
-                <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
-                    <div className="bg-white p-2 rounded-lg shadow-md">
-                        <h3 className="font-semibold text-sm">Central Park, Memorial Day 2025</h3>
+            <div className="flex-1 relative w-full h-full min-h-0">
+                <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2 pointer-events-none">
+                    <div className="bg-white/80 backdrop-blur p-1 px-2 rounded text-[10px] text-gray-500 font-mono">
+                        {APP_VERSION}
                     </div>
                 </div>
 
@@ -170,7 +189,7 @@ export const PlayerView = () => {
 
                     <div className="flex items-center gap-6">
                         <button onClick={() => {
-                            audioRef.current.currentTime -= 15;
+                            if (audioRef.current) audioRef.current.currentTime -= 15;
                         }} className="text-gray-400 hover:text-gray-600">
                             <SkipBack className="w-6 h-6" />
                         </button>
@@ -183,7 +202,7 @@ export const PlayerView = () => {
                         </button>
 
                         <button onClick={() => {
-                            audioRef.current.currentTime += 15;
+                            if (audioRef.current) audioRef.current.currentTime += 15;
                         }} className="text-gray-400 hover:text-gray-600">
                             <SkipForward className="w-6 h-6" />
                         </button>
