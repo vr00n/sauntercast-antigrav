@@ -59,14 +59,21 @@ export const PlayerView = () => {
         return () => cancelAnimationFrame(animationRef.current);
     }, [isPlaying, recording]);
 
-    const togglePlay = () => {
-        if (audioRef.current) {
-            if (isPlaying) {
-                audioRef.current.pause();
-            } else {
-                audioRef.current.play();
+    const togglePlay = async () => {
+        const audio = audioRef.current;
+        if (!audio) return;
+
+        if (isPlaying) {
+            audio.pause();
+            setIsPlaying(false);
+        } else {
+            try {
+                await audio.play();
+                setIsPlaying(true);
+            } catch (err) {
+                console.error("Playback failed", err);
+                setIsPlaying(false);
             }
-            setIsPlaying(!isPlaying);
         }
     };
 
