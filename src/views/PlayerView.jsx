@@ -121,9 +121,11 @@ export const PlayerView = () => {
     return (
         <div className="flex flex-col h-screen bg-white">
             <audio
+                key={recording.id}
                 ref={audioRef}
                 onEnded={() => setIsPlaying(false)}
                 playbackRate={playbackRate}
+                playsInline
             />
 
             {/* Map Area */}
