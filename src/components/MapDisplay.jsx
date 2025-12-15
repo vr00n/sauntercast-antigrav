@@ -3,17 +3,17 @@ import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap, useMapEvents 
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MessageSquare, MapPin } from 'lucide-react';
+import { MessageSquare, MapPin, Star, Flag, AlertTriangle } from 'lucide-react';
 
 // Custom Icons
 const createIcon = (type) => {
     const iconMarkup = renderToStaticMarkup(
         <div className="text-brand-red">
-            {type === 'comment' ? (
-                <MessageSquare size={20} fill="currentColor" className="text-brand-red" />
-            ) : (
-                <MapPin size={20} fill="currentColor" className="text-brand-red" />
-            )}
+            {type === 'comment' && <MessageSquare size={20} fill="currentColor" className="text-brand-red" />}
+            {type === 'star' && <Star size={20} fill="currentColor" className="text-yellow-500" />}
+            {type === 'flag' && <Flag size={20} fill="currentColor" className="text-orange-500" />}
+            {type === 'alert' && <AlertTriangle size={20} fill="currentColor" className="text-brand-red" />}
+            {(!['comment', 'star', 'flag', 'alert'].includes(type)) && <MapPin size={20} fill="currentColor" className="text-brand-red" />}
         </div>
     );
 

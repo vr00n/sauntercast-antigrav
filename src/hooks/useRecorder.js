@@ -83,9 +83,9 @@ export const useRecorder = () => {
         setIsRecording(false);
     };
 
-    const addAnnotation = (type, text = '') => {
+    const addAnnotation = (type, text = '', customTimestamp = null) => {
         if (!isRecording || !startTime) return;
-        const timestamp = Date.now() - startTime;
+        const timestamp = customTimestamp !== null ? customTimestamp : (Date.now() - startTime);
         // Get the last known location
         const lastLoc = locations[locations.length - 1];
         setAnnotations(prev => [...prev, {

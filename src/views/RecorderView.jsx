@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRecorder } from '../hooks/useRecorder';
 import { MapDisplay } from '../components/MapDisplay';
-import { Mic, Square, Save, MessageSquare, MapPin } from 'lucide-react';
+import { Mic, Square, Save, Plus, MapPin, X, MessageSquare, Star, Flag, AlertTriangle } from 'lucide-react';
 import { saveRecording } from '../utils/storage';
 import { useNavigate } from 'react-router-dom';
 import { APP_VERSION } from '../utils/version';
@@ -20,6 +20,11 @@ export const RecorderView = () => {
     } = useRecorder();
 
     const [isSaving, setIsSaving] = useState(false);
+    const [isAnnotationModalOpen, setIsAnnotationModalOpen] = useState(false);
+    const [pendingAnnotation, setPendingAnnotation] = useState(null);
+    const [annotationText, setAnnotationText] = useState('');
+    const [selectedIcon, setSelectedIcon] = useState('comment');
+
     const navigate = useNavigate();
 
     const formatTime = (seconds) => {
@@ -45,10 +50,29 @@ export const RecorderView = () => {
         navigate('/');
     };
 
+    const handleStartAnnotation = () => {
+        if (!isRecording) return;
+        // Capture context AT THE MOMENT of clicking "Add"
+        setPendingAnnotation({
+            timestamp: Date.now() - startTime
+        });
+        setAnnotationText('');
+        setSelectedIcon('comment');
+        setIsAnnotationModalOpen(true);
+    };
+
+    const handleSaveAnnotation = () => {
+        if (pendingAnnotation) {
+            addAnnotation(selectedIcon, annotationText, pendingAnnotation.timestamp);
+        }
+        setIsAnnotationModalOpen(false);
+        setPendingAnnotation(null);
+    };
+
     const currentLocation = locations.length > 0 ? locations[locations.length - 1] : null;
 
     return (
-        <div className="flex flex-col h-[100dvh] bg-white overflow-hidden">
+        <div className="flex flex-col h-[100dvh] bg-white overflow-hidden relative">
             {/* Header */}
             <div className="p-4 border-b flex justify-between items-center bg-white z-10">
                 <button onClick={() => navigate('/')} className="text-blue-500">Back</button>
@@ -74,23 +98,69 @@ export const RecorderView = () => {
                 )}
             </div>
 
+            {/* Annotation Modal */}
+            {isAnnotationModalOpen && (
+                <div className="absolute inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-4 flex flex-col gap-4 animate-slide-up">
+                        <div className="flex justify-between items-center">
+                            <h3 className="font-semibold text-lg">Add Note</h3>
+                            <button onClick={() => setIsAnnotationModalOpen(false)} className="p-1 text-gray-400">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <textarea
+                            className="w-full h-24 p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-brand-red resize-none text-base"
+                            placeholder="What's happening here?"
+                            value={annotationText}
+                            onChange={(e) => setAnnotationText(e.target.value)}
+                            autoFocus
+                        />
+
+                        <div className="flex justify-between gap-2 overflow-x-auto pb-2">
+                            {[
+                                { id: 'comment', icon: MessageSquare, label: 'Note' },
+                                { id: 'map-pin', icon: MapPin, label: 'Pin' },
+                                { id: 'star', icon: Star, label: 'Star', color: 'text-yellow-500' },
+                                { id: 'flag', icon: Flag, label: 'Flag', color: 'text-orange-500' },
+                                { id: 'alert', icon: AlertTriangle, label: 'Alert', color: 'text-red-500' }
+                            ].map((item) => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => setSelectedIcon(item.id)}
+                                    className={`flex flex-col items-center gap-1 p-3 rounded-xl min-w-[70px] transition-all ${selectedIcon === item.id
+                                            ? 'bg-gray-900 text-white shadow-lg'
+                                            : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
+                                        }`}
+                                >
+                                    <item.icon size={24} className={selectedIcon === item.id ? 'text-white' : item.color || ''} />
+                                    <span className="text-xs font-medium">{item.label}</span>
+                                </button>
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={handleSaveAnnotation}
+                            className="w-full py-3 bg-brand-red text-white font-bold rounded-xl shadow-lg hover:brightness-110 active:scale-[0.98] transition-all"
+                        >
+                            Save Note
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Controls */}
             <div className="p-6 bg-white border-t safe-area-bottom">
                 {!audioBlob ? (
                     <div className="flex flex-col gap-4">
                         {isRecording && (
-                            <div className="flex justify-center gap-8 mb-4">
+                            <div className="flex justify-center mb-4">
                                 <button
-                                    onClick={() => addAnnotation('comment', 'Note')}
-                                    className="p-3 bg-gray-100 rounded-full hover:bg-gray-200 transition"
+                                    onClick={handleStartAnnotation}
+                                    className="px-6 py-3 bg-white border border-gray-200 shadow-sm rounded-full flex items-center gap-2 hover:bg-gray-50 active:scale-95 transition-all text-gray-700 font-medium"
                                 >
-                                    <MessageSquare className="w-6 h-6 text-gray-700" />
-                                </button>
-                                <button
-                                    onClick={() => addAnnotation('icon')}
-                                    className="p-3 bg-gray-100 rounded-full hover:bg-gray-200 transition"
-                                >
-                                    <MapPin className="w-6 h-6 text-gray-700" />
+                                    <Plus className="w-5 h-5 text-brand-red" />
+                                    Add Note
                                 </button>
                             </div>
                         )}
