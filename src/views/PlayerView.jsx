@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getRecording } from '../utils/storage';
+import { getRecording, saveRecording } from '../utils/storage'; // Updated input to include saveRecording
 import { MapDisplay } from '../components/MapDisplay';
-import { Play, Pause, SkipBack, SkipForward, X, Share2, Info } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, X, Share2, Info, FileText, Loader2 } from 'lucide-react';
 import { APP_VERSION } from '../utils/version';
 import { exportRecording } from '../utils/exportImport';
+import { useTranscriber } from '../hooks/useTranscriber';
 
 export const PlayerView = () => {
     const { id } = useParams();
@@ -14,9 +15,13 @@ export const PlayerView = () => {
     const [currentTime, setCurrentTime] = useState(0);
     const [currentLocation, setCurrentLocation] = useState(null);
     const [playbackRate, setPlaybackRate] = useState(1);
+    const [showTranscript, setShowTranscript] = useState(false);
 
     const audioRef = useRef(null);
     const animationRef = useRef(null);
+
+    // Transcription Hook
+    const { transcribe, status: transcriberStatus, progress: transcriberProgress, result: transcriptionResult } = useTranscriber();
 
     useEffect(() => {
         const load = async () => {
@@ -35,6 +40,21 @@ export const PlayerView = () => {
         };
         load();
     }, [id]);
+
+    // Handle saving transcript when completed
+    useEffect(() => {
+        if (transcriberStatus === 'complete' && transcriptionResult && recording) {
+            const saveTranscript = async () => {
+                const updatedRecording = {
+                    ...recording,
+                    transcription: transcriptionResult
+                };
+                await saveRecording(updatedRecording);
+                setRecording(updatedRecording);
+            };
+            saveTranscript();
+        }
+    }, [transcriberStatus, transcriptionResult]); // We only dep on these changing
 
     // Set audio source when recording is loaded and ref is available
     useEffect(() => {
@@ -131,6 +151,24 @@ export const PlayerView = () => {
         }
     };
 
+    const handleTranscribe = () => {
+        if (recording && recording.audioBlob) {
+            setShowTranscript(true);
+            transcribe(recording.audioBlob);
+        }
+    };
+
+    // Helper to jump to transcript time
+    const jumpToTime = (timestamp) => {
+        // timestamp from whisper is usually [start, end] in seconds
+        // or simple start time
+        const time = timestamp;
+        if (audioRef.current) {
+            audioRef.current.currentTime = time;
+            setCurrentTime(time);
+        }
+    };
+
     const formatTime = (seconds) => {
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
@@ -138,6 +176,10 @@ export const PlayerView = () => {
     };
 
     if (!recording) return <div className="p-8 text-center">Loading...</div>;
+
+    // Has transcription?
+    const hasTranscript = recording.transcription && recording.transcription.text;
+    const isTranscribing = ['downloading', 'loading', 'processing', 'starting'].includes(transcriberStatus);
 
     return (
         <div className="flex flex-col h-[100dvh] bg-white overflow-hidden">
@@ -157,7 +199,7 @@ export const PlayerView = () => {
             />
 
             {/* Map Area */}
-            <div className="flex-1 relative w-full h-full min-h-0">
+            <div className={`relative w-full transition-all duration-300 ${showTranscript ? 'h-1/2' : 'flex-1 h-full'} min-h-0`}>
                 <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2 pointer-events-none">
                     <div className="bg-white/80 backdrop-blur p-1 px-2 rounded text-[10px] text-gray-500 font-mono">
                         {APP_VERSION}
@@ -173,6 +215,68 @@ export const PlayerView = () => {
                     />
                 </div>
             </div>
+
+            {/* Transcript Area */}
+            {showTranscript && (
+                <div className="flex-1 bg-white border-t overflow-y-auto p-4 animate-slide-up">
+                    <div className="flex justify-between items-center mb-4 sticky top-0 bg-white pb-2 border-b">
+                        <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                            <FileText size={18} />
+                            Transcript
+                        </h3>
+                        <button onClick={() => setShowTranscript(false)} className="text-gray-400">
+                            <X size={18} />
+                        </button>
+                    </div>
+
+                    {isTranscribing && (
+                        <div className="flex flex-col items-center justify-center h-40 gap-4 text-gray-500">
+                            <Loader2 className="animate-spin w-8 h-8 text-brand-red" />
+                            <div className="text-center text-sm">
+                                {transcriberStatus === 'downloading' && `Downloading AI Model (${Math.round(transcriberProgress)}%)...`}
+                                {transcriberStatus === 'loading' && 'Initializing AI...'}
+                                {transcriberStatus === 'processing' && 'Transcribing audio...'}
+                                {transcriberStatus === 'starting' && 'Preparing audio...'}
+                            </div>
+                            {transcriberStatus === 'downloading' && (
+                                <div className="w-48 h-1 bg-gray-200 rounded-full overflow-hidden">
+                                    <div className="h-full bg-brand-red transition-all" style={{ width: `${transcriberProgress}%` }} />
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {recording.transcription && recording.transcription.chunks && (
+                        <div className="space-y-4">
+                            {recording.transcription.chunks.map((chunk, i) => {
+                                // Highlight current chunk
+                                const isActive = currentTime >= chunk.timestamp[0] && currentTime <= chunk.timestamp[1];
+                                return (
+                                    <div
+                                        key={i}
+                                        onClick={() => jumpToTime(chunk.timestamp[0])}
+                                        className={`p-2 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-red-50 border-l-2 border-brand-red' : 'hover:bg-gray-50'}`}
+                                    >
+                                        <span className="text-xs font-mono text-gray-400 block mb-1">
+                                            {formatTime(chunk.timestamp[0])}
+                                        </span>
+                                        <p className={`text-sm ${isActive ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>
+                                            {chunk.text}
+                                        </p>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+
+                    {/* Fallback if chunks are missing but text exists */}
+                    {recording.transcription && !recording.transcription.chunks && recording.transcription.text && (
+                        <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
+                            {recording.transcription.text}
+                        </p>
+                    )}
+                </div>
+            )}
 
             {/* Player Controls */}
             <div className="bg-white border-t p-4 safe-area-bottom shadow-xl z-20">
@@ -218,6 +322,22 @@ export const PlayerView = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
+                        {/* Transcribe Button */}
+                        <button
+                            onClick={() => {
+                                if (hasTranscript) {
+                                    setShowTranscript(!showTranscript);
+                                } else {
+                                    handleTranscribe();
+                                }
+                            }}
+                            className={`p-2 transition-all ${(showTranscript || hasTranscript) ? 'text-brand-red' : 'text-gray-400 hover:text-gray-600'
+                                }`}
+                            title={hasTranscript ? "View Transcript" : "Transcribe"}
+                        >
+                            <FileText className="w-5 h-5" />
+                        </button>
+
                         <button
                             onClick={() => exportRecording(recording)}
                             className="p-2 text-gray-400 hover:text-gray-600 active:text-brand-red active:scale-95 transition-all"
@@ -244,3 +364,4 @@ export const PlayerView = () => {
         </div>
     );
 };
+
