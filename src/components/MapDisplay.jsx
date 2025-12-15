@@ -2,13 +2,14 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { MessageSquare, MapPin, Star, Flag, AlertTriangle, Navigation, Layers, Locate } from 'lucide-react';
+import { MessageSquare, MapPin, Star, Flag, AlertTriangle, Navigation, Layers, Locate, Globe, Map as MapIcon } from 'lucide-react';
 
 const MAPBOX_TOKEN = "pk.eyJ1IjoidnIwMG4tbnljc2J1cyIsImEiOiJjbDB5cHhoeHgxcmEyM2ptdXVkczk1M2xlIn0.qq6o-6TMurwke-t1eyetBw";
 
 export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick }) => {
     const mapRef = useRef(null);
     const [viewMode, setViewMode] = useState('follow'); // 'follow' | 'overhead'
+    const [mapStyle, setMapStyle] = useState('streets-v12'); // 'streets-v12' | 'satellite-streets-v12'
     const [isAutoCentering, setIsAutoCentering] = useState(true);
 
     const [viewState, setViewState] = useState({
@@ -54,7 +55,7 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
         setIsAutoCentering(true);
     }, [viewMode]);
 
-    // Path GeoJSON
+    // Path GeoJSON with line metrics for gradient
     const geojson = useMemo(() => ({
         type: 'Feature',
         properties: {},
@@ -85,6 +86,10 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
         }
     };
 
+    const toggleMapStyle = () => {
+        setMapStyle(prev => prev === 'streets-v12' ? 'satellite-streets-v12' : 'streets-v12');
+    };
+
     return (
         <div className="relative h-full w-full">
             <Map
@@ -98,7 +103,7 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
                 }}
                 ref={mapRef}
                 style={{ width: '100%', height: '100%' }}
-                mapStyle="mapbox://styles/mapbox/streets-v12"
+                mapStyle={`mapbox://styles/mapbox/${mapStyle}`}
                 mapboxAccessToken={MAPBOX_TOKEN}
                 onClick={handleMapClick}
                 terrain={{ source: 'mapbox-dem', exaggeration: 1.5 }}
@@ -112,15 +117,27 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
                     maxzoom={14}
                 />
 
-                {/* Path Line */}
-                <Source id="path-data" type="geojson" data={geojson}>
+                {/* Path Line with Gradient */}
+                {/* Note: line-gradient requires source 'lineMetrics: true' which is enabled by default in react-map-gl for GeoJSON if data is a Feature? No, we must specify in Source component */}
+                <Source id="path-data" type="geojson" data={geojson} lineMetrics={true}>
                     <Layer
                         id="path-layer"
                         type="line"
+                        layout={{
+                            'line-join': 'round',
+                            'line-cap': 'round'
+                        }}
                         paint={{
-                            'line-color': '#FF3B30',
-                            'line-width': 5,
-                            'line-opacity': 0.8
+                            'line-width': 6,
+                            'line-gradient': [
+                                'interpolate',
+                                ['linear'],
+                                ['line-progress'],
+                                0, '#22c55e', // Green at start
+                                0.5, '#eab308', // Yellow middle
+                                1, '#ef4444' // Red at end (current)
+                            ],
+                            'line-opacity': 0.9
                         }}
                     />
                 </Source>
@@ -172,6 +189,25 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
 
             {/* View Controls */}
             <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+
+                {/* Map Style Toggle */}
+                <button
+                    onClick={toggleMapStyle}
+                    className="p-3 bg-white rounded-xl shadow-lg border border-gray-100 hover:bg-gray-50 active:scale-95 transition-all text-gray-700"
+                    title="Toggle Satellite"
+                >
+                    <div className="flex flex-col items-center">
+                        {mapStyle === 'streets-v12' ? (
+                            <Globe className="w-6 h-6 text-green-600" />
+                        ) : (
+                            <MapIcon className="w-6 h-6 text-gray-600" />
+                        )}
+                        <span className="text-[10px] font-bold mt-1">
+                            {mapStyle === 'streets-v12' ? 'Sat' : 'Map'}
+                        </span>
+                    </div>
+                </button>
+
                 <button
                     onClick={() => setViewMode(prev => prev === 'follow' ? 'overhead' : 'follow')}
                     className="p-3 bg-white rounded-xl shadow-lg border border-gray-100 hover:bg-gray-50 active:scale-95 transition-all text-gray-700"
@@ -184,7 +220,7 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
                     ) : (
                         <div className="flex flex-col items-center">
                             <Layers className="w-6 h-6 text-gray-600" />
-                            <span className="text-[10px] font-bold mt-1">Map</span>
+                            <span className="text-[10px] font-bold mt-1">Free</span>
                         </div>
                     )}
                 </button>
@@ -197,7 +233,7 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
                     >
                         <div className="flex flex-col items-center">
                             <Locate className="w-6 h-6" />
-                            <span className="text-[10px] font-bold mt-1">Recenter</span>
+                            <span className="text-[10px] font-bold mt-1">Center</span>
                         </div>
                     </button>
                 )}

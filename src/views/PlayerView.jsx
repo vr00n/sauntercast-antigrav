@@ -2,10 +2,66 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getRecording, saveRecording } from '../utils/storage'; // Updated input to include saveRecording
 import { MapDisplay } from '../components/MapDisplay';
-import { Play, Pause, SkipBack, SkipForward, X, Share2, Info, FileText, Loader2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, X, Share2, Info, FileText, Loader2, Gauge } from 'lucide-react';
 import { APP_VERSION } from '../utils/version';
 import { exportRecording } from '../utils/exportImport';
 import { useTranscriber } from '../hooks/useTranscriber';
+
+// Stats Component
+const StatsDisplay = ({ recording, currentLocation, currentTime }) => {
+    // Basic stats calculation
+    const speed = currentLocation?.speed ? (currentLocation.speed * 3.6).toFixed(1) : 0; // m/s to km/h
+    const altitude = currentLocation?.altitude ? currentLocation.altitude.toFixed(1) : '-';
+
+    // Total distance calculation (approximate) - could be pre-calculated
+    const calculateDistance = (locs) => {
+        let dist = 0;
+        for (let i = 1; i < locs.length; i++) {
+            const lat1 = locs[i - 1].lat;
+            const lon1 = locs[i - 1].lng;
+            const lat2 = locs[i].lat;
+            const lon2 = locs[i].lng;
+            const R = 6371e3; // metres
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const Δφ = (lat2 - lat1) * Math.PI / 180;
+            const Δλ = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            dist += R * c;
+        }
+        return (dist / 1000).toFixed(2); // km
+    };
+
+    // We only calculate total distance once
+    const totalDist = React.useMemo(() => calculateDistance(recording.locations), [recording]);
+
+    return (
+        <div className="absolute top-16 left-4 bg-black/80 backdrop-blur-md text-white p-3 rounded-xl shadow-lg z-10 text-xs font-mono space-y-1 animate-slide-right max-w-[150px]">
+            <div className="font-bold border-b border-gray-600 pb-1 mb-1 text-gray-400">NERD STATS</div>
+            <div className="flex justify-between gap-4">
+                <span className="text-gray-400">Speed:</span>
+                <span>{speed} km/h</span>
+            </div>
+            <div className="flex justify-between gap-4">
+                <span className="text-gray-400">Alt:</span>
+                <span>{altitude} m</span>
+            </div>
+            <div className="flex justify-between gap-4">
+                <span className="text-gray-400">Dist:</span>
+                <span>{totalDist} km</span>
+            </div>
+            <div className="flex justify-between gap-4">
+                <span className="text-gray-400">Pts:</span>
+                <span>{recording.locations.length}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+                <span className="text-gray-400">ID:</span>
+                <span className="truncate w-12">{recording.id.slice(0, 6)}</span>
+            </div>
+        </div>
+    );
+};
 
 export const PlayerView = () => {
     const { id } = useParams();
@@ -13,9 +69,11 @@ export const PlayerView = () => {
     const [recording, setRecording] = useState(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0); // Source of truth for duration
     const [currentLocation, setCurrentLocation] = useState(null);
     const [playbackRate, setPlaybackRate] = useState(1);
     const [showTranscript, setShowTranscript] = useState(false);
+    const [showStats, setShowStats] = useState(false);
 
     const audioRef = useRef(null);
     const animationRef = useRef(null);
@@ -31,6 +89,8 @@ export const PlayerView = () => {
                 if (rec) {
                     console.log("Recording loaded:", rec);
                     setRecording(rec);
+                    // Initial fallback duration from recording data, but Audio element will override
+                    setDuration(rec.duration || 0);
                 } else {
                     console.error("Recording not found for id:", id);
                 }
@@ -100,18 +160,14 @@ export const PlayerView = () => {
 
     const togglePlay = async () => {
         const audio = audioRef.current;
-        console.log("Toggle play clicked. Audio ref:", audio);
         if (!audio) return;
 
         if (isPlaying) {
-            console.log("Pausing audio...");
             audio.pause();
             setIsPlaying(false);
         } else {
-            console.log("Attempting to play audio...");
             try {
                 await audio.play();
-                console.log("Audio playing successfully");
                 setIsPlaying(true);
             } catch (err) {
                 console.error("Playback failed:", err);
@@ -170,6 +226,7 @@ export const PlayerView = () => {
     };
 
     const formatTime = (seconds) => {
+        if (!seconds || isNaN(seconds)) return "0:00";
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -187,13 +244,15 @@ export const PlayerView = () => {
                 key={recording.id}
                 ref={audioRef}
                 onEnded={() => {
-                    console.log("Audio ended");
                     setIsPlaying(false);
                 }}
-                onPlay={() => console.log("Audio event: play")}
-                onPause={() => console.log("Audio event: pause")}
-                onError={(e) => console.error("Audio event: error", e)}
-                onLoadedMetadata={() => console.log("Audio event: loadedmetadata")}
+                onLoadedMetadata={(e) => {
+                    // Critical Fix: Update duration from the actual audio availability
+                    if (e.target.duration && e.target.duration !== Infinity) {
+                        setDuration(e.target.duration);
+                        console.log("Corrected duration from metadata:", e.target.duration);
+                    }
+                }}
                 playbackRate={playbackRate}
                 playsInline
             />
@@ -205,6 +264,18 @@ export const PlayerView = () => {
                         {APP_VERSION}
                     </div>
                 </div>
+
+                {/* Stats Toggle Button (Visible but outside map pointer-events) */}
+                <div className="absolute top-4 left-4 z-[1000] pointer-events-auto">
+                    <button
+                        onClick={() => setShowStats(!showStats)}
+                        className={`p-2 rounded-full shadow-lg border transition-all ${showStats ? 'bg-black text-white border-black' : 'bg-white text-gray-500 border-gray-100 hover:text-gray-900'}`}
+                    >
+                        <Gauge size={16} />
+                    </button>
+                </div>
+
+                {showStats && <StatsDisplay recording={recording} currentLocation={currentLocation} currentTime={currentTime} />}
 
                 <div className="absolute inset-0">
                     <MapDisplay
@@ -286,12 +357,12 @@ export const PlayerView = () => {
                     <input
                         type="range"
                         min="0"
-                        max={recording.duration}
+                        max={duration}
                         value={currentTime}
                         onChange={handleSeek}
                         className="flex-1 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-red"
                     />
-                    <span className="text-xs font-mono text-gray-500 w-10">{formatTime(recording.duration)}</span>
+                    <span className="text-xs font-mono text-gray-500 w-10">{formatTime(duration)}</span>
                 </div>
 
                 {/* Buttons */}

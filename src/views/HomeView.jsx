@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getRecordings, deleteRecording } from '../utils/storage';
-import { Plus, Clock, MapPin, Trash2, ChevronRight, Upload } from 'lucide-react';
+import { Plus, Clock, MapPin, Trash2, ChevronRight, Upload, HelpCircle, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { APP_VERSION } from '../utils/version';
 import { importRecording } from '../utils/exportImport';
@@ -9,6 +9,7 @@ import { importRecording } from '../utils/exportImport';
 export const HomeView = () => {
     const [recordings, setRecordings] = useState([]);
     const [isImporting, setIsImporting] = useState(false);
+    const [showHelp, setShowHelp] = useState(false);
     const fileInputRef = useRef(null);
     const navigate = useNavigate();
 
@@ -54,9 +55,69 @@ export const HomeView = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-24">
+        <div className="min-h-screen bg-gray-50 pb-24 relative">
+            {/* Quick Start Modal */}
+            {showHelp && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowHelp(false)}>
+                    <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 relative animate-scale-up" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => setShowHelp(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                            <X size={24} />
+                        </button>
+
+                        <h2 className="text-xl font-bold mb-4 text-gray-900">How to use Sauntercast</h2>
+
+                        <div className="space-y-4">
+                            <div className="flex gap-3">
+                                <div className="p-2 bg-red-100 text-brand-red rounded-lg h-fit"><Plus size={20} /></div>
+                                <div>
+                                    <h3 className="font-semibold text-gray-800">Record a Journey</h3>
+                                    <p className="text-sm text-gray-600">Tap the big + button. Walk, talk, and add notes or photos along the way.</p>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg h-fit"><MapPin size={20} /></div>
+                                <div>
+                                    <h3 className="font-semibold text-gray-800">Explore in 3D</h3>
+                                    <p className="text-sm text-gray-600">Open a recording to see your path. Toggle "Driving Mode" to follow your route in 3D.</p>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <div className="p-2 bg-green-100 text-green-600 rounded-lg h-fit"><Clock size={20} /></div>
+                                <div>
+                                    <h3 className="font-semibold text-gray-800">AI Transcription</h3>
+                                    <p className="text-sm text-gray-600">Tap the document icon in the player to privately transcribe your audio on-device.</p>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <div className="p-2 bg-purple-100 text-purple-600 rounded-lg h-fit"><Upload size={20} /></div>
+                                <div>
+                                    <h3 className="font-semibold text-gray-800">Share & Export</h3>
+                                    <p className="text-sm text-gray-600">Export your journeys as .saunter files to share with friends or back up locally.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => setShowHelp(false)}
+                            className="w-full mt-6 bg-brand-red text-white py-3 rounded-xl font-semibold active:scale-95 transition-transform"
+                        >
+                            Got it!
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white p-6 pt-12 border-b sticky top-0 z-10 flex justify-between items-end">
                 <div>
+                    <button
+                        onClick={() => setShowHelp(true)}
+                        className="flex items-center gap-1 text-brand-red font-medium text-xs mb-1 hover:underline"
+                    >
+                        <HelpCircle size={14} /> Quick Start
+                    </button>
                     <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sauntercast</h1>
                     <p className="text-gray-500 text-sm mt-1">Your audio journeys</p>
                 </div>
@@ -86,6 +147,12 @@ export const HomeView = () => {
                     <div className="text-center py-20 text-gray-400">
                         <p>No recordings yet.</p>
                         <p className="text-sm">Tap the + button to start one.</p>
+                        <button
+                            onClick={() => setShowHelp(true)}
+                            className="mt-4 text-brand-red text-sm font-medium underline"
+                        >
+                            How does it work?
+                        </button>
                     </div>
                 ) : (
                     recordings.map((rec) => (
