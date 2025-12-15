@@ -1,12 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getRecordings, deleteRecording } from '../utils/storage';
-import { Plus, Clock, MapPin, Trash2, ChevronRight } from 'lucide-react';
+import { Plus, Clock, MapPin, Trash2, ChevronRight, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import { APP_VERSION } from '../utils/version';
+import { importRecording } from '../utils/exportImport';
 
 export const HomeView = () => {
     const [recordings, setRecordings] = useState([]);
+    const [isImporting, setIsImporting] = useState(false);
+    const fileInputRef = useRef(null);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -27,6 +30,23 @@ export const HomeView = () => {
         }
     };
 
+    const handleImport = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        try {
+            await importRecording(file);
+            await loadRecordings();
+            alert('Recording imported successfully!');
+        } catch (err) {
+            alert('Failed to import recording. Invalid file.');
+        } finally {
+            setIsImporting(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
     const formatDuration = (seconds) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
@@ -35,10 +55,30 @@ export const HomeView = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 pb-24">
-            <div className="bg-white p-6 pt-12 border-b sticky top-0 z-10">
-                <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sauntercast</h1>
-                <p className="text-gray-500 text-sm mt-1">Your audio journeys</p>
-                <div className="text-[10px] text-gray-300 font-mono absolute right-6 top-6">{APP_VERSION}</div>
+            <div className="bg-white p-6 pt-12 border-b sticky top-0 z-10 flex justify-between items-end">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sauntercast</h1>
+                    <p className="text-gray-500 text-sm mt-1">Your audio journeys</p>
+                </div>
+
+                <div className="flex gap-2 items-center">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleImport}
+                        accept=".saunter,.zip"
+                        className="hidden"
+                    />
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isImporting}
+                        className="text-brand-red flex flex-col items-center p-2 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                        <Upload className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">{isImporting ? '...' : 'Import'}</span>
+                    </button>
+                    <div className="text-[10px] text-gray-300 font-mono self-start ml-2">{APP_VERSION}</div>
+                </div>
             </div>
 
             <div className="p-4 space-y-4">

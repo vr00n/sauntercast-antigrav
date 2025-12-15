@@ -4,6 +4,7 @@ import { getRecording } from '../utils/storage';
 import { MapDisplay } from '../components/MapDisplay';
 import { Play, Pause, SkipBack, SkipForward, X, Share2, Info } from 'lucide-react';
 import { APP_VERSION } from '../utils/version';
+import { exportRecording } from '../utils/exportImport';
 
 export const PlayerView = () => {
     const { id } = useParams();
@@ -217,7 +218,11 @@ export const PlayerView = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <button className="p-2 text-gray-400 hover:text-gray-600">
+                        <button
+                            onClick={() => exportRecording(recording)}
+                            className="p-2 text-gray-400 hover:text-gray-600 active:text-brand-red active:scale-95 transition-all"
+                            title="Export Recording"
+                        >
                             <Share2 className="w-5 h-5" />
                         </button>
                         <select
