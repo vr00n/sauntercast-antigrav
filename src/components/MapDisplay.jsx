@@ -2,13 +2,15 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { MessageSquare, MapPin, Star, Flag, AlertTriangle, Navigation, Layers } from 'lucide-react';
+import { MessageSquare, MapPin, Star, Flag, AlertTriangle, Navigation, Layers, Locate } from 'lucide-react';
 
 const MAPBOX_TOKEN = "pk.eyJ1IjoidnIwMG4tbnljc2J1cyIsImEiOiJjbDB5cHhoeHgxcmEyM2ptdXVkczk1M2xlIn0.qq6o-6TMurwke-t1eyetBw";
 
 export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick }) => {
     const mapRef = useRef(null);
     const [viewMode, setViewMode] = useState('follow'); // 'follow' | 'overhead'
+    const [isAutoCentering, setIsAutoCentering] = useState(true);
+
     const [viewState, setViewState] = useState({
         latitude: 40.785091,
         longitude: -73.968285,
@@ -33,7 +35,7 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
 
     // Update view state when current location changes
     useEffect(() => {
-        if (currentLocation) {
+        if (currentLocation && isAutoCentering) {
             setViewState(prev => ({
                 ...prev,
                 latitude: currentLocation.lat,
@@ -44,7 +46,13 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
                 transitionDuration: 1000
             }));
         }
-    }, [currentLocation, viewMode, heading]);
+    }, [currentLocation, viewMode, heading, isAutoCentering]);
+
+    // Handle view mode changes
+    useEffect(() => {
+        // When switching modes, force auto-centering
+        setIsAutoCentering(true);
+    }, [viewMode]);
 
     // Path GeoJSON
     const geojson = useMemo(() => ({
@@ -62,11 +70,32 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
         }
     };
 
+    const handleRecenter = () => {
+        setIsAutoCentering(true);
+        if (currentLocation) {
+            setViewState(prev => ({
+                ...prev,
+                latitude: currentLocation.lat,
+                longitude: currentLocation.lng,
+                zoom: viewMode === 'follow' ? 17 : 15,
+                pitch: viewMode === 'follow' ? 60 : 0,
+                bearing: viewMode === 'follow' ? heading : 0,
+                transitionDuration: 1000
+            }));
+        }
+    };
+
     return (
         <div className="relative h-full w-full">
             <Map
                 {...viewState}
-                onMove={evt => setViewState(evt.viewState)}
+                onMove={evt => {
+                    setViewState(evt.viewState);
+                    // If the user interacts (drags, etc), disable auto-centering
+                    if (evt.originalEvent) {
+                        setIsAutoCentering(false);
+                    }
+                }}
                 ref={mapRef}
                 style={{ width: '100%', height: '100%' }}
                 mapStyle="mapbox://styles/mapbox/streets-v12"
@@ -141,7 +170,7 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
                 <NavigationControl position="bottom-left" />
             </Map>
 
-            {/* View Mode Toggle */}
+            {/* View Controls */}
             <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
                 <button
                     onClick={() => setViewMode(prev => prev === 'follow' ? 'overhead' : 'follow')}
@@ -159,6 +188,19 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
                         </div>
                     )}
                 </button>
+
+                {/* Recenter Button - Only show if we are NOT auto-centering */}
+                {!isAutoCentering && (
+                    <button
+                        onClick={handleRecenter}
+                        className="p-3 bg-white rounded-xl shadow-lg border border-gray-100 hover:bg-gray-50 active:scale-95 transition-all text-blue-500 animate-slide-up"
+                    >
+                        <div className="flex flex-col items-center">
+                            <Locate className="w-6 h-6" />
+                            <span className="text-[10px] font-bold mt-1">Recenter</span>
+                        </div>
+                    </button>
+                )}
             </div>
         </div>
     );
