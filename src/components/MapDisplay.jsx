@@ -1,101 +1,165 @@
-import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { MessageSquare, MapPin, Star, Flag, AlertTriangle } from 'lucide-react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import { MessageSquare, MapPin, Star, Flag, AlertTriangle, Navigation, Layers } from 'lucide-react';
 
-// Custom Icons
-const createIcon = (type) => {
-    const iconMarkup = renderToStaticMarkup(
-        <div className="text-brand-red">
-            {type === 'comment' && <MessageSquare size={20} fill="currentColor" className="text-brand-red" />}
-            {type === 'star' && <Star size={20} fill="currentColor" className="text-yellow-500" />}
-            {type === 'flag' && <Flag size={20} fill="currentColor" className="text-orange-500" />}
-            {type === 'alert' && <AlertTriangle size={20} fill="currentColor" className="text-brand-red" />}
-            {(!['comment', 'star', 'flag', 'alert'].includes(type)) && <MapPin size={20} fill="currentColor" className="text-brand-red" />}
-        </div>
-    );
+const MAPBOX_TOKEN = "pk.eyJ1IjoidnIwMG4tbnljc2J1cyIsImEiOiJjbDB5cHhoeHgxcmEyM2ptdXVkczk1M2xlIn0.qq6o-6TMurwke-t1eyetBw";
 
-    return L.divIcon({
-        html: `<div class="annotation-marker w-8 h-8">${iconMarkup}</div>`,
-        className: '', // Remove default class
-        iconSize: [32, 32],
-        iconAnchor: [16, 32], // Bottom center
-        popupAnchor: [0, -32]
+export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick }) => {
+    const mapRef = useRef(null);
+    const [viewMode, setViewMode] = useState('follow'); // 'follow' | 'overhead'
+    const [viewState, setViewState] = useState({
+        latitude: 40.785091,
+        longitude: -73.968285,
+        zoom: 15,
+        pitch: 0,
+        bearing: 0
     });
-};
 
-const userIcon = L.divIcon({
-    html: `
-    <div class="user-marker">
-      <div class="user-marker-pulse"></div>
-      <div class="user-marker-dot"></div>
-    </div>
-  `,
-    className: '',
-    iconSize: [32, 32],
-    iconAnchor: [16, 16] // Center
-});
+    // Calculate heading based on last two points
+    const heading = useMemo(() => {
+        if (locations.length < 2) return 0;
+        const last = locations[locations.length - 1];
+        const prev = locations[locations.length - 2];
 
-const RecenterMap = ({ center }) => {
-    const map = useMap();
+        // Simple bearing calculation
+        const y = Math.sin(last.lng - prev.lng) * Math.cos(last.lat);
+        const x = Math.cos(prev.lat) * Math.sin(last.lat) -
+            Math.sin(prev.lat) * Math.cos(last.lat) * Math.cos(last.lng - prev.lng);
+        const theta = Math.atan2(y, x);
+        return (theta * 180 / Math.PI + 360) % 360; // Degrees
+    }, [locations]);
+
+    // Update view state when current location changes
     useEffect(() => {
-        if (center) {
-            map.setView(center);
+        if (currentLocation) {
+            setViewState(prev => ({
+                ...prev,
+                latitude: currentLocation.lat,
+                longitude: currentLocation.lng,
+                zoom: viewMode === 'follow' ? 17 : 15,
+                pitch: viewMode === 'follow' ? 60 : 0,
+                bearing: viewMode === 'follow' ? heading : 0,
+                transitionDuration: 1000
+            }));
         }
-    }, [center, map]);
-    return null;
-};
+    }, [currentLocation, viewMode, heading]);
 
-const MapEvents = ({ onClick }) => {
-    useMapEvents({
-        click(e) {
-            if (onClick) onClick(e.latlng);
-        },
-    });
-    return null;
-};
+    // Path GeoJSON
+    const geojson = useMemo(() => ({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+            type: 'LineString',
+            coordinates: locations.map(l => [l.lng, l.lat])
+        }
+    }), [locations]);
 
-export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick, center }) => {
-    const path = locations.map(l => [l.lat, l.lng]);
-    const mapCenter = center || (currentLocation ? [currentLocation.lat, currentLocation.lng] : [40.785091, -73.968285]);
+    const handleMapClick = (e) => {
+        if (onMapClick) {
+            onMapClick({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+        }
+    };
 
     return (
-        <MapContainer
-            center={mapCenter}
-            zoom={15}
-            className="h-full w-full z-0"
-            zoomControl={false}
-        >
-            <TileLayer
-                url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-            />
+        <div className="relative h-full w-full">
+            <Map
+                {...viewState}
+                onMove={evt => setViewState(evt.viewState)}
+                ref={mapRef}
+                style={{ width: '100%', height: '100%' }}
+                mapStyle="mapbox://styles/mapbox/streets-v12"
+                mapboxAccessToken={MAPBOX_TOKEN}
+                onClick={handleMapClick}
+                terrain={{ source: 'mapbox-dem', exaggeration: 1.5 }}
+            >
+                {/* 3D Terrain Source */}
+                <Source
+                    id="mapbox-dem"
+                    type="raster-dem"
+                    url="mapbox://mapbox.mapbox-terrain-dem-v1"
+                    tileSize={512}
+                    maxzoom={14}
+                />
 
-            {/* The full path */}
-            <Polyline positions={path} color="#FF3B30" weight={4} />
+                {/* Path Line */}
+                <Source id="path-data" type="geojson" data={geojson}>
+                    <Layer
+                        id="path-layer"
+                        type="line"
+                        paint={{
+                            'line-color': '#FF3B30',
+                            'line-width': 5,
+                            'line-opacity': 0.8
+                        }}
+                    />
+                </Source>
 
-            {/* Current position marker */}
-            {currentLocation && (
-                <Marker position={[currentLocation.lat, currentLocation.lng]} icon={userIcon} />
-            )}
+                {/* User Location Marker */}
+                {currentLocation && (
+                    <Marker
+                        longitude={currentLocation.lng}
+                        latitude={currentLocation.lat}
+                        anchor="center"
+                    >
+                        <div className="relative flex items-center justify-center w-8 h-8">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-4 w-4 bg-blue-500 border-2 border-white shadow-sm"></span>
+                        </div>
+                    </Marker>
+                )}
 
-            {/* Annotations */}
-            {annotations?.map((ann) => (
-                ann.location && (
+                {/* Annotations */}
+                {annotations?.map(ann => ann.location && (
                     <Marker
                         key={ann.id}
-                        position={[ann.location.lat, ann.location.lng]}
-                        icon={createIcon(ann.type)}
+                        longitude={ann.location.lng}
+                        latitude={ann.location.lat}
+                        anchor="bottom"
+                        onClick={(e) => {
+                            e.originalEvent.stopPropagation();
+                            // Optional: Show popup here
+                        }}
                     >
-                        <Popup>{ann.text || ann.type}</Popup>
+                        <div className="flex flex-col items-center group cursor-pointer hover:scale-110 transition-transform">
+                            <div className="bg-white/90 backdrop-blur px-2 py-1 rounded-md shadow text-xs font-semibold mb-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                {ann.text || ann.type}
+                            </div>
+                            <div className="text-brand-red bg-white p-1 rounded-full shadow-md">
+                                {ann.type === 'comment' && <MessageSquare size={16} fill="currentColor" className="text-brand-red" />}
+                                {ann.type === 'star' && <Star size={16} fill="currentColor" className="text-yellow-500" />}
+                                {ann.type === 'flag' && <Flag size={16} fill="currentColor" className="text-orange-500" />}
+                                {ann.type === 'alert' && <AlertTriangle size={16} fill="currentColor" className="text-brand-red" />}
+                                {ann.type === 'map-pin' && <MapPin size={16} fill="currentColor" className="text-brand-red" />}
+                                {ann.type === 'icon' && <MapPin size={16} fill="currentColor" className="text-brand-red" />}
+                            </div>
+                        </div>
                     </Marker>
-                )
-            ))}
+                ))}
 
-            <RecenterMap center={currentLocation ? [currentLocation.lat, currentLocation.lng] : null} />
-            <MapEvents onClick={onMapClick} />
-        </MapContainer>
+                <NavigationControl position="bottom-left" />
+            </Map>
+
+            {/* View Mode Toggle */}
+            <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+                <button
+                    onClick={() => setViewMode(prev => prev === 'follow' ? 'overhead' : 'follow')}
+                    className="p-3 bg-white rounded-xl shadow-lg border border-gray-100 hover:bg-gray-50 active:scale-95 transition-all text-gray-700"
+                >
+                    {viewMode === 'follow' ? (
+                        <div className="flex flex-col items-center">
+                            <Navigation className="w-6 h-6 fill-current text-blue-500 rotate-45" />
+                            <span className="text-[10px] font-bold mt-1">Driving</span>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center">
+                            <Layers className="w-6 h-6 text-gray-600" />
+                            <span className="text-[10px] font-bold mt-1">Map</span>
+                        </div>
+                    )}
+                </button>
+            </div>
+        </div>
     );
 };

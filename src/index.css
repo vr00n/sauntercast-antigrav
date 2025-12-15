@@ -8,11 +8,10 @@
   }
 }
 
-/* Leaflet map customization */
-.leaflet-container {
+/* Map styles */
+.mapboxgl-map {
   width: 100%;
   height: 100%;
-  z-index: 0;
 }
 
 /* Custom scrollbar for webkit */
