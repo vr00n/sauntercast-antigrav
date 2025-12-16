@@ -71,7 +71,7 @@ export const HomeView = () => {
                                 <div className="p-2 bg-red-100 text-brand-red rounded-lg h-fit"><Plus size={20} /></div>
                                 <div>
                                     <h3 className="font-semibold text-gray-800">Record a Journey</h3>
-                                    <p className="text-sm text-gray-600">Tap the big + button. Walk, talk, and add notes or photos along the way.</p>
+                                    <p className="text-sm text-gray-600">Tap the big + button. Walk, talk, and add notes along the way.</p>
                                 </div>
                             </div>
 
