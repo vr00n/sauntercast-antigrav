@@ -12,12 +12,24 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
     const [mapStyle, setMapStyle] = useState('streets-v12'); // 'streets-v12' | 'satellite-streets-v12'
     const [isAutoCentering, setIsAutoCentering] = useState(true);
 
-    const [viewState, setViewState] = useState({
-        latitude: 40.785091,
-        longitude: -73.968285,
-        zoom: 15,
-        pitch: 0,
-        bearing: 0
+    const [viewState, setViewState] = useState(() => {
+        // Initialize with first location if available to avoid "jump" from NYC
+        if (locations && locations.length > 0) {
+            return {
+                latitude: locations[0].lat,
+                longitude: locations[0].lng,
+                zoom: 17, // Start zoomed in for follow mode
+                pitch: 60, // Start angled for follow mode
+                bearing: 0
+            };
+        }
+        return {
+            latitude: 40.785091,
+            longitude: -73.968285,
+            zoom: 15,
+            pitch: 0,
+            bearing: 0
+        };
     });
 
     // Calculate heading based on last two points
