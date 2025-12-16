@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getRecordings, deleteRecording } from '../utils/storage';
-import { Plus, Clock, MapPin, Trash2, ChevronRight, Upload, HelpCircle, X } from 'lucide-react';
+import { Plus, Clock, MapPin, Trash2, ChevronRight, Upload, HelpCircle, X, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { APP_VERSION } from '../utils/version';
 import { importRecording } from '../utils/exportImport';
@@ -112,12 +112,20 @@ export const HomeView = () => {
 
             <div className="bg-white p-6 pt-12 border-b sticky top-0 z-10 flex justify-between items-end">
                 <div>
-                    <button
-                        onClick={() => setShowHelp(true)}
-                        className="flex items-center gap-1 text-brand-red font-medium text-xs mb-1 hover:underline"
-                    >
-                        <HelpCircle size={14} /> Quick Start
-                    </button>
+                    <div className="flex gap-3 mb-1">
+                        <button
+                            onClick={() => setShowHelp(true)}
+                            className="flex items-center gap-1 text-brand-red font-medium text-xs hover:underline"
+                        >
+                            <HelpCircle size={14} /> Quick Start
+                        </button>
+                        <button
+                            onClick={() => navigate('/about')}
+                            className="flex items-center gap-1 text-gray-500 font-medium text-xs hover:text-gray-900 transition-colors"
+                        >
+                            <Info size={14} /> About
+                        </button>
+                    </div>
                     <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sauntercast</h1>
                     <p className="text-gray-500 text-sm mt-1">Your audio journeys</p>
                 </div>
