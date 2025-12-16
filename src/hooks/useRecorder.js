@@ -57,8 +57,9 @@ export const useRecorder = () => {
             }
 
             // Start timer
+            // Use Date.now() diff to prevent drift/throttling issues in background
             timerRef.current = setInterval(() => {
-                setDuration((prev) => prev + 1);
+                setDuration(Math.floor((Date.now() - start) / 1000));
             }, 1000);
 
         } catch (err) {
@@ -78,6 +79,11 @@ export const useRecorder = () => {
 
         if (timerRef.current) {
             clearInterval(timerRef.current);
+        }
+
+        // Final duration update to ensure accuracy even if interval was engaged
+        if (startTime) {
+            setDuration(Math.floor((Date.now() - startTime) / 1000));
         }
 
         setIsRecording(false);
