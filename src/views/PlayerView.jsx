@@ -1,67 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getRecording, saveRecording } from '../utils/storage'; // Updated input to include saveRecording
+import { getRecording, saveRecording } from '../utils/storage';
 import { MapDisplay } from '../components/MapDisplay';
-import { Play, Pause, SkipBack, SkipForward, X, Share2, Info, FileText, Loader2, Gauge } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, X, Share2, Info, FileText, Loader2, Gauge, Plus, MessageSquare, MapPin, Star, Flag, AlertTriangle } from 'lucide-react';
 import { APP_VERSION } from '../utils/version';
 import { exportRecording } from '../utils/exportImport';
 import { useTranscriber } from '../hooks/useTranscriber';
-
-// Stats Component
-const StatsDisplay = ({ recording, currentLocation, currentTime }) => {
-    // Basic stats calculation
-    const speed = currentLocation?.speed ? (currentLocation.speed * 3.6).toFixed(1) : 0; // m/s to km/h
-    const altitude = currentLocation?.altitude ? currentLocation.altitude.toFixed(1) : '-';
-
-    // Total distance calculation (approximate) - could be pre-calculated
-    const calculateDistance = (locs) => {
-        let dist = 0;
-        for (let i = 1; i < locs.length; i++) {
-            const lat1 = locs[i - 1].lat;
-            const lon1 = locs[i - 1].lng;
-            const lat2 = locs[i].lat;
-            const lon2 = locs[i].lng;
-            const R = 6371e3; // metres
-            const φ1 = lat1 * Math.PI / 180;
-            const φ2 = lat2 * Math.PI / 180;
-            const Δφ = (lat2 - lat1) * Math.PI / 180;
-            const Δλ = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            dist += R * c;
-        }
-        return (dist / 1000).toFixed(2); // km
-    };
-
-    // We only calculate total distance once
-    const totalDist = React.useMemo(() => calculateDistance(recording.locations), [recording]);
-
-    return (
-        <div className="absolute top-16 left-4 bg-black/80 backdrop-blur-md text-white p-3 rounded-xl shadow-lg z-10 text-xs font-mono space-y-1 animate-slide-right max-w-[150px]">
-            <div className="font-bold border-b border-gray-600 pb-1 mb-1 text-gray-400">NERD STATS</div>
-            <div className="flex justify-between gap-4">
-                <span className="text-gray-400">Speed:</span>
-                <span>{speed} km/h</span>
-            </div>
-            <div className="flex justify-between gap-4">
-                <span className="text-gray-400">Alt:</span>
-                <span>{altitude} m</span>
-            </div>
-            <div className="flex justify-between gap-4">
-                <span className="text-gray-400">Dist:</span>
-                <span>{totalDist} km</span>
-            </div>
-            <div className="flex justify-between gap-4">
-                <span className="text-gray-400">Pts:</span>
-                <span>{recording.locations.length}</span>
-            </div>
-            <div className="flex justify-between gap-4">
-                <span className="text-gray-400">ID:</span>
-                <span className="truncate w-12">{recording.id.slice(0, 6)}</span>
-            </div>
-        </div>
-    );
-};
+import { StatsDisplay } from '../components/StatsDisplay';
 
 export const PlayerView = () => {
     const { id } = useParams();
@@ -74,6 +19,12 @@ export const PlayerView = () => {
     const [playbackRate, setPlaybackRate] = useState(1);
     const [showTranscript, setShowTranscript] = useState(false);
     const [showStats, setShowStats] = useState(false);
+
+    // Annotation State
+    const [isAnnotationModalOpen, setIsAnnotationModalOpen] = useState(false);
+    const [annotationText, setAnnotationText] = useState('');
+    const [selectedIcon, setSelectedIcon] = useState('comment');
+    const [playbackPausedTime, setPlaybackPausedTime] = useState(null);
 
     const audioRef = useRef(null);
     const animationRef = useRef(null);
@@ -114,7 +65,7 @@ export const PlayerView = () => {
             };
             saveTranscript();
         }
-    }, [transcriberStatus, transcriptionResult]); // We only dep on these changing
+    }, [transcriberStatus, transcriptionResult]);
 
     // Set audio source when recording is loaded and ref is available
     useEffect(() => {
@@ -214,15 +165,45 @@ export const PlayerView = () => {
         }
     };
 
-    // Helper to jump to transcript time
     const jumpToTime = (timestamp) => {
-        // timestamp from whisper is usually [start, end] in seconds
-        // or simple start time
         const time = timestamp;
         if (audioRef.current) {
             audioRef.current.currentTime = time;
             setCurrentTime(time);
         }
+    };
+
+    const handleAddAnnotation = () => {
+        // Pause playback
+        if (audioRef.current) {
+            audioRef.current.pause();
+            setIsPlaying(false);
+        }
+        setPlaybackPausedTime(currentTime * 1000); // ms
+        setAnnotationText('');
+        setSelectedIcon('comment');
+        setIsAnnotationModalOpen(true);
+    };
+
+    const handleSaveAnnotation = async () => {
+        if (!recording) return;
+
+        const newAnnotation = {
+            id: crypto.randomUUID(),
+            timestamp: playbackPausedTime,
+            type: selectedIcon,
+            text: annotationText,
+            location: currentLocation
+        };
+
+        const updatedRecording = {
+            ...recording,
+            annotations: [...(recording.annotations || []), newAnnotation]
+        };
+
+        setRecording(updatedRecording);
+        await saveRecording(updatedRecording);
+        setIsAnnotationModalOpen(false);
     };
 
     const formatTime = (seconds) => {
@@ -247,7 +228,6 @@ export const PlayerView = () => {
                     setIsPlaying(false);
                 }}
                 onLoadedMetadata={(e) => {
-                    // Critical Fix: Update duration from the actual audio availability
                     if (e.target.duration && e.target.duration !== Infinity) {
                         setDuration(e.target.duration);
                         console.log("Corrected duration from metadata:", e.target.duration);
@@ -265,7 +245,7 @@ export const PlayerView = () => {
                     </div>
                 </div>
 
-                {/* Stats Toggle Button (Visible but outside map pointer-events) */}
+                {/* Stats Toggle Button */}
                 <div className="absolute top-4 left-4 z-[1000] pointer-events-auto">
                     <button
                         onClick={() => setShowStats(!showStats)}
@@ -275,7 +255,7 @@ export const PlayerView = () => {
                     </button>
                 </div>
 
-                {showStats && <StatsDisplay recording={recording} currentLocation={currentLocation} currentTime={currentTime} />}
+                {showStats && <StatsDisplay recording={recording} currentLocation={currentLocation} currentTime={currentTime} isLive={false} />}
 
                 <div className="absolute inset-0">
                     <MapDisplay
@@ -285,6 +265,57 @@ export const PlayerView = () => {
                         onMapClick={handleMapClick}
                     />
                 </div>
+
+                {/* Annotation Modal */}
+                {isAnnotationModalOpen && (
+                    <div className="absolute inset-0 z-[2000] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-fade-in pointer-events-auto">
+                        <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-4 flex flex-col gap-4 animate-slide-up">
+                            <div className="flex justify-between items-center">
+                                <h3 className="font-semibold text-lg">Add Note at {formatTime(playbackPausedTime / 1000)}</h3>
+                                <button onClick={() => setIsAnnotationModalOpen(false)} className="p-1 text-gray-400">
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            <textarea
+                                className="w-full h-24 p-3 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-brand-red resize-none text-base"
+                                placeholder="What's notable about this moment?"
+                                value={annotationText}
+                                onChange={(e) => setAnnotationText(e.target.value)}
+                                autoFocus
+                            />
+
+                            <div className="flex justify-between gap-2 overflow-x-auto pb-2">
+                                {[
+                                    { id: 'comment', icon: MessageSquare, label: 'Note' },
+                                    { id: 'map-pin', icon: MapPin, label: 'Pin' },
+                                    { id: 'star', icon: Star, label: 'Star', color: 'text-yellow-500' },
+                                    { id: 'flag', icon: Flag, label: 'Flag', color: 'text-orange-500' },
+                                    { id: 'alert', icon: AlertTriangle, label: 'Alert', color: 'text-red-500' }
+                                ].map((item) => (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => setSelectedIcon(item.id)}
+                                        className={`flex flex-col items-center gap-1 p-3 rounded-xl min-w-[70px] transition-all ${selectedIcon === item.id
+                                            ? 'bg-gray-900 text-white shadow-lg'
+                                            : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
+                                            }`}
+                                    >
+                                        <item.icon size={24} className={selectedIcon === item.id ? 'text-white' : item.color || ''} />
+                                        <span className="text-xs font-medium">{item.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <button
+                                onClick={handleSaveAnnotation}
+                                className="w-full py-3 bg-brand-red text-white font-bold rounded-xl shadow-lg hover:brightness-110 active:scale-[0.98] transition-all"
+                            >
+                                Save Note
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Transcript Area */}
@@ -393,6 +424,15 @@ export const PlayerView = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
+                        {/* New Add Annotation Button */}
+                        <button
+                            onClick={handleAddAnnotation}
+                            className="p-2 text-gray-400 hover:text-gray-600 active:text-brand-red active:scale-95 transition-all"
+                            title="Add Note"
+                        >
+                            <Plus className="w-5 h-5" />
+                        </button>
+
                         {/* Transcribe Button */}
                         <button
                             onClick={() => {
@@ -416,23 +456,9 @@ export const PlayerView = () => {
                         >
                             <Share2 className="w-5 h-5" />
                         </button>
-                        <select
-                            className="bg-gray-100 rounded px-2 py-1 text-xs font-medium"
-                            value={playbackRate}
-                            onChange={(e) => {
-                                const rate = parseFloat(e.target.value);
-                                setPlaybackRate(rate);
-                                if (audioRef.current) audioRef.current.playbackRate = rate;
-                            }}
-                        >
-                            <option value="1">1x</option>
-                            <option value="1.5">1.5x</option>
-                            <option value="2">2x</option>
-                        </select>
                     </div>
                 </div>
             </div>
         </div>
     );
 };
-

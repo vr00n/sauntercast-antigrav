@@ -45,14 +45,40 @@ export const useRecorder = () => {
 
             // Start location tracking
             if ('geolocation' in navigator) {
+                // Keep track of the last saved position to reduce duplicates/jitter
+                let lastSavedPosition = null;
+
                 watchIdRef.current = navigator.geolocation.watchPosition(
                     (position) => {
-                        const { latitude, longitude } = position.coords;
-                        const timestamp = Date.now() - start; // Relative time
-                        setLocations((prev) => [...prev, { lat: latitude, lng: longitude, timestamp }]);
+                        const { latitude, longitude, speed, altitude, accuracy, altitudeAccuracy, heading } = position.coords;
+                        const timestamp = Date.now() - start;
+
+                        // Filter out points that are too close to the last one (e.g., < 2 meters) to save memory/rendering
+                        // Simple Euclidean approximation is fine for this check
+                        if (lastSavedPosition) {
+                            const dLat = latitude - lastSavedPosition.lat;
+                            const dLng = longitude - lastSavedPosition.lng;
+                            // roughly meters conversion
+                            const dist = Math.sqrt(dLat * dLat + dLng * dLng) * 111000;
+                            if (dist < 2) return;
+                        }
+
+                        const newLoc = {
+                            lat: latitude,
+                            lng: longitude,
+                            timestamp,
+                            speed,
+                            altitude,
+                            accuracy,
+                            altitudeAccuracy,
+                            heading
+                        };
+
+                        lastSavedPosition = newLoc;
+                        setLocations((prev) => [...prev, newLoc]);
                     },
                     (error) => console.error('Geolocation error:', error),
-                    { enableHighAccuracy: true }
+                    { enableHighAccuracy: true, maximumAge: 0 }
                 );
             }
 

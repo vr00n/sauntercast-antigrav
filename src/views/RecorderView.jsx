@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useRecorder } from '../hooks/useRecorder';
 import { MapDisplay } from '../components/MapDisplay';
-import { Mic, Square, Save, Plus, MapPin, X, MessageSquare, Star, Flag, AlertTriangle } from 'lucide-react';
+import { StatsDisplay } from '../components/StatsDisplay';
+import { Mic, Square, Save, Plus, MapPin, X, MessageSquare, Star, Flag, AlertTriangle, Gauge } from 'lucide-react';
 import { saveRecording } from '../utils/storage';
 import { useNavigate } from 'react-router-dom';
 import { APP_VERSION } from '../utils/version';
@@ -21,6 +22,7 @@ export const RecorderView = () => {
 
     const [isSaving, setIsSaving] = useState(false);
     const [isAnnotationModalOpen, setIsAnnotationModalOpen] = useState(false);
+    const [showStats, setShowStats] = useState(false);
     const [pendingAnnotation, setPendingAnnotation] = useState(null);
     const [annotationText, setAnnotationText] = useState('');
     const [selectedIcon, setSelectedIcon] = useState('comment');
@@ -84,6 +86,18 @@ export const RecorderView = () => {
             <div className="flex-1 relative bg-gray-50">
                 {isRecording || locations.length > 0 ? (
                     <div className="absolute inset-0">
+                        {/* Stats Toggle Button */}
+                        <div className="absolute top-4 left-4 z-[1000] pointer-events-auto">
+                            <button
+                                onClick={() => setShowStats(!showStats)}
+                                className={`p-2 rounded-full shadow-lg border transition-all ${showStats ? 'bg-black text-white border-black' : 'bg-white text-gray-500 border-gray-100 hover:text-gray-900'}`}
+                            >
+                                <Gauge size={16} />
+                            </button>
+                        </div>
+
+                        {showStats && <StatsDisplay recording={{ locations }} currentLocation={currentLocation} isLive={true} />}
+
                         <MapDisplay
                             locations={locations}
                             currentLocation={currentLocation}
@@ -129,8 +143,8 @@ export const RecorderView = () => {
                                     key={item.id}
                                     onClick={() => setSelectedIcon(item.id)}
                                     className={`flex flex-col items-center gap-1 p-3 rounded-xl min-w-[70px] transition-all ${selectedIcon === item.id
-                                            ? 'bg-gray-900 text-white shadow-lg'
-                                            : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
+                                        ? 'bg-gray-900 text-white shadow-lg'
+                                        : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
                                         }`}
                                 >
                                     <item.icon size={24} className={selectedIcon === item.id ? 'text-white' : item.color || ''} />
