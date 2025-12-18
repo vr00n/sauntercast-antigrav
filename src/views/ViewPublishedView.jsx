@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { fetchPublishedSaunter } from '../utils/publish';
 import { PlayerView } from './PlayerView';
 import { Lock, Loader2 } from 'lucide-react';
 
 export const ViewPublishedView = () => {
-    const { id } = useParams();
+    const [searchParams] = useSearchParams();
+    const dataParam = searchParams.get('data');
+
     const [recording, setRecording] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -14,8 +16,13 @@ export const ViewPublishedView = () => {
     const [attempting, setAttempting] = useState(false);
 
     useEffect(() => {
-        loadSaunter();
-    }, [id]);
+        if (dataParam) {
+            loadSaunter();
+        } else {
+            setError('No saunter data found in URL');
+            setLoading(false);
+        }
+    }, [dataParam]);
 
     const loadSaunter = async (pwd = null) => {
         setLoading(true);
@@ -23,7 +30,7 @@ export const ViewPublishedView = () => {
         setAttempting(!!pwd);
 
         try {
-            const data = await fetchPublishedSaunter(id, pwd);
+            const data = await fetchPublishedSaunter(dataParam, pwd);
             setRecording(data);
             setNeedsPassword(false);
         } catch (err) {
@@ -113,7 +120,7 @@ export const ViewPublishedView = () => {
             <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
                 <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
                     <div className="text-6xl mb-4">😕</div>
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Saunter Not Found</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Invalid Share Link</h1>
                     <p className="text-gray-600 mb-6">{error}</p>
                     <a
                         href="/#/"
@@ -127,8 +134,17 @@ export const ViewPublishedView = () => {
     }
 
     if (recording) {
-        // Render the player with the loaded recording
-        return <PlayerView initialRecording={recording} />;
+        // Note: Audio won't be available in shared saunters
+        return (
+            <div>
+                <div className="bg-amber-50 border-b border-amber-200 p-3 text-center">
+                    <p className="text-sm text-amber-800">
+                        <strong>Note:</strong> Audio is not included in shared links (path and annotations only)
+                    </p>
+                </div>
+                <PlayerView initialRecording={recording} />
+            </div>
+        );
     }
 
     return null;

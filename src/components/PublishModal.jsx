@@ -63,7 +63,7 @@ export const PublishModal = ({ recording, onClose }) => {
 
                     <div className="space-y-4">
                         <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
-                            <p className="text-sm text-green-800 mb-2">Your saunter is now live!</p>
+                            <p className="text-sm text-green-800 mb-2">Your saunter link is ready!</p>
                             <div className="flex items-center gap-2">
                                 <input
                                     type="text"
@@ -78,6 +78,12 @@ export const PublishModal = ({ recording, onClose }) => {
                                     {copied ? <Check size={20} /> : <Copy size={20} />}
                                 </button>
                             </div>
+                        </div>
+
+                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                            <p className="text-sm text-blue-800">
+                                <strong>Note:</strong> Shared links include your path and annotations, but not the audio recording (to keep links short and shareable).
+                            </p>
                         </div>
 
                         {!isPublic && (
