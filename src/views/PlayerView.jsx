@@ -8,13 +8,13 @@ import { exportRecording } from '../utils/exportImport';
 import { useTranscriber } from '../hooks/useTranscriber';
 import { StatsDisplay } from '../components/StatsDisplay';
 
-export const PlayerView = () => {
+export const PlayerView = ({ initialRecording = null }) => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const [recording, setRecording] = useState(null);
+    const [recording, setRecording] = useState(initialRecording);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
-    const [duration, setDuration] = useState(0); // Source of truth for duration
+    const [duration, setDuration] = useState(0);
     const [currentLocation, setCurrentLocation] = useState(null);
     const [playbackRate, setPlaybackRate] = useState(1);
     const [showTranscript, setShowTranscript] = useState(false);
@@ -33,6 +33,13 @@ export const PlayerView = () => {
     const { transcribe, status: transcriberStatus, progress: transcriberProgress, result: transcriptionResult } = useTranscriber();
 
     useEffect(() => {
+        // Skip loading if we already have initialRecording
+        if (initialRecording) {
+            setRecording(initialRecording);
+            setDuration(initialRecording.duration || 0);
+            return;
+        }
+
         const load = async () => {
             console.log("Loading recording:", id);
             try {
@@ -50,7 +57,7 @@ export const PlayerView = () => {
             }
         };
         load();
-    }, [id]);
+    }, [id, initialRecording]);
 
     // Handle saving transcript when completed
     useEffect(() => {

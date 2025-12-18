@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useRecorder } from '../hooks/useRecorder';
 import { MapDisplay } from '../components/MapDisplay';
 import { StatsDisplay } from '../components/StatsDisplay';
-import { Mic, Square, Save, Plus, MapPin, X, MessageSquare, Star, Flag, AlertTriangle, Gauge } from 'lucide-react';
+import { Mic, Square, Save, Plus, MapPin, X, MessageSquare, Star, Flag, AlertTriangle, Gauge, Globe } from 'lucide-react';
 import { saveRecording } from '../utils/storage';
 import { useNavigate } from 'react-router-dom';
 import { APP_VERSION } from '../utils/version';
+import { PublishModal } from '../components/PublishModal';
 
 export const RecorderView = () => {
     const {
@@ -23,6 +24,8 @@ export const RecorderView = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [isAnnotationModalOpen, setIsAnnotationModalOpen] = useState(false);
     const [showStats, setShowStats] = useState(false);
+    const [showPublishModal, setShowPublishModal] = useState(false);
+    const [savedRecording, setSavedRecording] = useState(null);
     const [pendingAnnotation, setPendingAnnotation] = useState(null);
     const [annotationText, setAnnotationText] = useState('');
     const [selectedIcon, setSelectedIcon] = useState('comment');
@@ -47,8 +50,18 @@ export const RecorderView = () => {
             audioBlob,
             createdAt: new Date(),
         };
+
+        // Save locally first
         await saveRecording(recording);
+        setSavedRecording(recording);
         setIsSaving(false);
+
+        // Show publish option
+        setShowPublishModal(true);
+    };
+
+    const handlePublishComplete = () => {
+        setShowPublishModal(false);
         navigate('/');
     };
 
@@ -213,6 +226,14 @@ export const RecorderView = () => {
                     </div>
                 )}
             </div>
+
+            {/* Publish Modal */}
+            {showPublishModal && savedRecording && (
+                <PublishModal
+                    recording={savedRecording}
+                    onClose={handlePublishComplete}
+                />
+            )}
         </div>
     );
 };
