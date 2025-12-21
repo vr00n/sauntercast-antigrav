@@ -11,11 +11,14 @@ import { PublishModal } from '../components/PublishModal';
 export const RecorderView = () => {
     const {
         isRecording,
+        isPaused,
         duration,
         locations,
         annotations,
         audioBlob,
         startRecording,
+        pauseRecording,
+        resumeRecording,
         stopRecording,
         addAnnotation,
         startTime
@@ -28,6 +31,7 @@ export const RecorderView = () => {
     const [savedRecording, setSavedRecording] = useState(null);
     const [pendingAnnotation, setPendingAnnotation] = useState(null);
     const [annotationText, setAnnotationText] = useState('');
+    const [annotationImage, setAnnotationImage] = useState(null);
     const [selectedIcon, setSelectedIcon] = useState('comment');
 
     const navigate = useNavigate();
@@ -72,16 +76,29 @@ export const RecorderView = () => {
             timestamp: Date.now() - startTime
         });
         setAnnotationText('');
+        setAnnotationImage(null);
         setSelectedIcon('comment');
         setIsAnnotationModalOpen(true);
     };
 
     const handleSaveAnnotation = () => {
         if (pendingAnnotation) {
-            addAnnotation(selectedIcon, annotationText, pendingAnnotation.timestamp);
+            addAnnotation(selectedIcon, annotationText, pendingAnnotation.timestamp, annotationImage);
         }
         setIsAnnotationModalOpen(false);
         setPendingAnnotation(null);
+        setAnnotationImage(null);
+    };
+
+    const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setAnnotationImage(reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const currentLocation = locations.length > 0 ? locations[locations.length - 1] : null;
@@ -91,7 +108,10 @@ export const RecorderView = () => {
             {/* Header */}
             <div className="p-4 border-b flex justify-between items-center bg-white z-10">
                 <button onClick={() => navigate('/')} className="text-blue-500">Back</button>
-                <div className="font-mono text-xl font-medium">{formatTime(duration)}</div>
+                <div className="font-mono text-xl font-medium flex items-center gap-2">
+                    {isPaused && <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">PAUSED</span>}
+                    {formatTime(duration)}
+                </div>
                 <div className="text-[10px] text-gray-300 font-mono absolute right-4 top-1">{APP_VERSION}</div>
             </div>
 
@@ -144,6 +164,29 @@ export const RecorderView = () => {
                             autoFocus
                         />
 
+                        {/* Image Upload */}
+                        <div>
+                            {annotationImage ? (
+                                <div className="relative">
+                                    <img src={annotationImage} alt="Preview" className="w-full h-32 object-cover rounded-xl" />
+                                    <button
+                                        onClick={() => setAnnotationImage(null)}
+                                        className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <label className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <div className="p-2 bg-gray-200 rounded-lg text-gray-500">
+                                        <Plus size={16} />
+                                    </div>
+                                    <span className="text-sm font-medium text-gray-600">Add Photo</span>
+                                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                                </label>
+                            )}
+                        </div>
+
                         <div className="flex justify-between gap-2 overflow-x-auto pb-2">
                             {[
                                 { id: 'comment', icon: MessageSquare, label: 'Note' },
@@ -181,13 +224,27 @@ export const RecorderView = () => {
                 {!audioBlob ? (
                     <div className="flex flex-col gap-4">
                         {isRecording && (
-                            <div className="flex justify-center mb-4">
+                            <div className="flex justify-between items-center gap-4 mb-2">
                                 <button
                                     onClick={handleStartAnnotation}
                                     className="px-6 py-3 bg-white border border-gray-200 shadow-sm rounded-full flex items-center gap-2 hover:bg-gray-50 active:scale-95 transition-all text-gray-700 font-medium"
                                 >
                                     <Plus className="w-5 h-5 text-brand-red" />
                                     Add Note
+                                </button>
+
+                                <button
+                                    onClick={isPaused ? resumeRecording : pauseRecording}
+                                    className={`px-6 py-3 border shadow-sm rounded-full flex items-center gap-2 active:scale-95 transition-all font-medium ${isPaused
+                                            ? 'bg-brand-red text-white border-brand-red'
+                                            : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                        }`}
+                                >
+                                    {isPaused ? (
+                                        <>Resume</>
+                                    ) : (
+                                        <>Pause</>
+                                    )}
                                 </button>
                             </div>
                         )}

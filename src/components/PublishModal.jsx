@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { X, Globe, Lock, Share2, Copy, Check, Loader2 } from 'lucide-react';
-import { publishSaunter } from '../utils/publish';
+import React, { useState, useEffect } from 'react';
+import { X, Globe, Lock, Share2, Copy, Check, Loader2, Key } from 'lucide-react';
+import { publishSaunter, getStoredToken, setStoredToken } from '../utils/publish';
 
 export const PublishModal = ({ recording, onClose }) => {
     const [isPublic, setIsPublic] = useState(true);
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [githubToken, setGithubToken] = useState(getStoredToken() || '');
+    const [showTokenInput, setShowTokenInput] = useState(!getStoredToken());
     const [isPublishing, setIsPublishing] = useState(false);
     const [publishedUrl, setPublishedUrl] = useState(null);
     const [error, setError] = useState(null);
@@ -18,6 +20,12 @@ export const PublishModal = ({ recording, onClose }) => {
         setError(null);
 
         // Validation
+        if (!githubToken) {
+            setError('GitHub Personal Access Token is required to publish with audio.');
+            setShowTokenInput(true);
+            return;
+        }
+
         if (!isPublic && !password) {
             setError('Password is required for private saunters');
             return;
@@ -31,6 +39,9 @@ export const PublishModal = ({ recording, onClose }) => {
         setIsPublishing(true);
 
         try {
+            // Save token for next time
+            setStoredToken(githubToken);
+
             const result = await publishSaunter(recording, {
                 isPublic,
                 password: isPublic ? null : password
@@ -55,7 +66,7 @@ export const PublishModal = ({ recording, onClose }) => {
             <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
                 <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 animate-slide-up">
                     <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-xl font-bold text-gray-900">Published Successfully!</h2>
+                        <h2 className="text-xl font-bold text-gray-900">Live with Audio! 🎙️</h2>
                         <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
                             <X size={24} />
                         </button>
@@ -63,7 +74,7 @@ export const PublishModal = ({ recording, onClose }) => {
 
                     <div className="space-y-4">
                         <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
-                            <p className="text-sm text-green-800 mb-2">Your saunter link is ready!</p>
+                            <p className="text-sm text-green-800 mb-2">Your saunter is public and includes audio:</p>
                             <div className="flex items-center gap-2">
                                 <input
                                     type="text"
@@ -80,17 +91,11 @@ export const PublishModal = ({ recording, onClose }) => {
                             </div>
                         </div>
 
-                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                            <p className="text-sm text-blue-800">
-                                <strong>Note:</strong> Shared links include your path and annotations, but not the audio recording (to keep links short and shareable).
-                            </p>
-                        </div>
-
                         {!isPublic && (
                             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
                                 <p className="text-sm text-amber-800">
                                     <Lock className="inline w-4 h-4 mr-1" />
-                                    This saunter is password-protected. Share the password separately with your audience.
+                                    This saunter is encrypted. Listeners will need the password to hear the audio and see the path.
                                 </p>
                             </div>
                         )}
@@ -109,9 +114,9 @@ export const PublishModal = ({ recording, onClose }) => {
 
     return (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 animate-slide-up">
+            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 animate-slide-up max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold text-gray-900">Publish Saunter</h2>
+                    <h2 className="text-xl font-bold text-gray-900">Publish with Audio</h2>
                     <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
                         <X size={24} />
                     </button>
@@ -125,9 +130,34 @@ export const PublishModal = ({ recording, onClose }) => {
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                            <p className="text-sm text-blue-800">
-                                Share your {durationMinutes} minute saunter with the world or keep it private with a password.
+                        {/* Token Configuration */}
+                        <div className="border border-gray-100 rounded-xl p-3 bg-gray-50/50">
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                                    <Key size={12} /> GitHub Publishing Token
+                                </label>
+                                <button
+                                    onClick={() => setShowTokenInput(!showTokenInput)}
+                                    className="text-xs text-blue-500 hover:underline"
+                                >
+                                    {showTokenInput ? 'Hide' : 'Change'}
+                                </button>
+                            </div>
+                            {showTokenInput ? (
+                                <input
+                                    type="password"
+                                    value={githubToken}
+                                    onChange={(e) => setGithubToken(e.target.value)}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red mb-2"
+                                    placeholder="ghp_..."
+                                />
+                            ) : (
+                                <div className="text-sm text-gray-400 bg-white p-2 border border-gray-200 rounded font-mono truncate">
+                                    ••••••••••••••••••••••••••••••••
+                                </div>
+                            )}
+                            <p className="text-[10px] text-gray-400">
+                                This token is stored locally in your browser. It is used to upload recordings to your GitHub repository.
                             </p>
                         </div>
 
@@ -148,7 +178,7 @@ export const PublishModal = ({ recording, onClose }) => {
                                             <Globe size={18} className="text-brand-red" />
                                             <span className="font-semibold text-gray-900">Public</span>
                                         </div>
-                                        <p className="text-xs text-gray-600 mt-1">Anyone with the link can view</p>
+                                        <p className="text-xs text-gray-600 mt-1">Anyone with the link can listen</p>
                                     </div>
                                 </div>
                             </label>
@@ -168,7 +198,7 @@ export const PublishModal = ({ recording, onClose }) => {
                                             <Lock size={18} className="text-gray-700" />
                                             <span className="font-semibold text-gray-900">Password Protected</span>
                                         </div>
-                                        <p className="text-xs text-gray-600 mt-1">Encrypted with your password</p>
+                                        <p className="text-xs text-gray-600 mt-1">Audio & path are encrypted</p>
                                     </div>
                                 </div>
                             </label>

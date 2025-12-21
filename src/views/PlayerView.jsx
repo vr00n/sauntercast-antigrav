@@ -23,6 +23,7 @@ export const PlayerView = ({ initialRecording = null }) => {
     // Annotation State
     const [isAnnotationModalOpen, setIsAnnotationModalOpen] = useState(false);
     const [annotationText, setAnnotationText] = useState('');
+    const [annotationImage, setAnnotationImage] = useState(null);
     const [selectedIcon, setSelectedIcon] = useState('comment');
     const [playbackPausedTime, setPlaybackPausedTime] = useState(null);
 
@@ -76,7 +77,7 @@ export const PlayerView = ({ initialRecording = null }) => {
 
     // Set audio source when recording is loaded and ref is available
     useEffect(() => {
-        if (recording && audioRef.current) {
+        if (recording && recording.audioBlob && audioRef.current) {
             const url = URL.createObjectURL(recording.audioBlob);
             console.log("Setting audio src:", url);
             audioRef.current.src = url;
@@ -88,57 +89,86 @@ export const PlayerView = ({ initialRecording = null }) => {
         }
     }, [recording]);
 
-    // Sync loop
+    // Manual sync loop for when there's no audio
     useEffect(() => {
+        let lastTime = Date.now();
         const sync = () => {
-            if (audioRef.current && recording) {
-                const time = audioRef.current.currentTime * 1000; // ms
-                setCurrentTime(audioRef.current.currentTime);
+            if (recording) {
+                if (audioRef.current && recording.audioBlob) {
+                    const time = audioRef.current.currentTime * 1000; // ms
+                    setCurrentTime(audioRef.current.currentTime);
 
-                // Find location at this time
-                const loc = recording.locations.find(l => l.timestamp >= time);
-                if (loc) {
-                    setCurrentLocation(loc);
-                }
+                    const loc = recording.locations.find(l => l.timestamp >= time);
+                    if (loc) setCurrentLocation(loc);
 
-                if (!audioRef.current.paused) {
-                    animationRef.current = requestAnimationFrame(sync);
+                    if (!audioRef.current.paused) {
+                        animationRef.current = requestAnimationFrame(sync);
+                    }
+                } else {
+                    // Manual playback for no-audio cases
+                    const now = Date.now();
+                    const delta = (now - lastTime) / 1000;
+                    lastTime = now;
+
+                    setCurrentTime(prev => {
+                        const next = prev + delta;
+                        if (next >= duration) {
+                            setIsPlaying(false);
+                            return duration;
+                        }
+
+                        const timeMs = next * 1000;
+                        const loc = recording.locations.find(l => l.timestamp >= timeMs);
+                        if (loc) setCurrentLocation(loc);
+
+                        return next;
+                    });
+
+                    if (isPlaying) {
+                        animationRef.current = requestAnimationFrame(sync);
+                    }
                 }
             }
         };
 
         if (isPlaying) {
+            lastTime = Date.now();
             animationRef.current = requestAnimationFrame(sync);
         } else {
             cancelAnimationFrame(animationRef.current);
         }
 
         return () => cancelAnimationFrame(animationRef.current);
-    }, [isPlaying, recording]);
+    }, [isPlaying, recording, duration]);
 
     const togglePlay = async () => {
-        const audio = audioRef.current;
-        if (!audio) return;
+        if (!recording) return;
 
-        if (isPlaying) {
-            audio.pause();
-            setIsPlaying(false);
-        } else {
-            try {
-                await audio.play();
-                setIsPlaying(true);
-            } catch (err) {
-                console.error("Playback failed:", err);
+        if (recording.audioBlob && audioRef.current) {
+            const audio = audioRef.current;
+            if (isPlaying) {
+                audio.pause();
                 setIsPlaying(false);
+            } else {
+                try {
+                    await audio.play();
+                    setIsPlaying(true);
+                } catch (err) {
+                    console.error("Playback failed:", err);
+                    setIsPlaying(false);
+                }
             }
+        } else {
+            // Manual toggle for no-audio
+            setIsPlaying(!isPlaying);
         }
     };
 
     const handleSeek = (e) => {
         const time = parseFloat(e.target.value);
-        if (audioRef.current) {
+        setCurrentTime(time);
+        if (audioRef.current && recording.audioBlob) {
             audioRef.current.currentTime = time;
-            setCurrentTime(time);
         }
     };
 
@@ -188,6 +218,7 @@ export const PlayerView = ({ initialRecording = null }) => {
         }
         setPlaybackPausedTime(currentTime * 1000); // ms
         setAnnotationText('');
+        setAnnotationImage(null);
         setSelectedIcon('comment');
         setIsAnnotationModalOpen(true);
     };
@@ -200,6 +231,7 @@ export const PlayerView = ({ initialRecording = null }) => {
             timestamp: playbackPausedTime,
             type: selectedIcon,
             text: annotationText,
+            image: annotationImage,
             location: currentLocation
         };
 
@@ -211,6 +243,18 @@ export const PlayerView = ({ initialRecording = null }) => {
         setRecording(updatedRecording);
         await saveRecording(updatedRecording);
         setIsAnnotationModalOpen(false);
+        setAnnotationImage(null);
+    };
+
+    const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setAnnotationImage(reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const formatTime = (seconds) => {
@@ -291,6 +335,29 @@ export const PlayerView = ({ initialRecording = null }) => {
                                 onChange={(e) => setAnnotationText(e.target.value)}
                                 autoFocus
                             />
+
+                            {/* Image Upload */}
+                            <div>
+                                {annotationImage ? (
+                                    <div className="relative">
+                                        <img src={annotationImage} alt="Preview" className="w-full h-32 object-cover rounded-xl" />
+                                        <button
+                                            onClick={() => setAnnotationImage(null)}
+                                            className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <label className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                                        <div className="p-2 bg-gray-200 rounded-lg text-gray-500">
+                                            <Plus size={16} />
+                                        </div>
+                                        <span className="text-sm font-medium text-gray-600">Add Photo</span>
+                                        <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                                    </label>
+                                )}
+                            </div>
 
                             <div className="flex justify-between gap-2 overflow-x-auto pb-2">
                                 {[
@@ -411,7 +478,9 @@ export const PlayerView = ({ initialRecording = null }) => {
 
                     <div className="flex items-center gap-6">
                         <button onClick={() => {
-                            if (audioRef.current) audioRef.current.currentTime -= 15;
+                            const newTime = Math.max(0, currentTime - 15);
+                            setCurrentTime(newTime);
+                            if (audioRef.current && recording.audioBlob) audioRef.current.currentTime = newTime;
                         }} className="text-gray-400 hover:text-gray-600">
                             <SkipBack className="w-6 h-6" />
                         </button>
@@ -424,7 +493,9 @@ export const PlayerView = ({ initialRecording = null }) => {
                         </button>
 
                         <button onClick={() => {
-                            if (audioRef.current) audioRef.current.currentTime += 15;
+                            const newTime = Math.min(duration, currentTime + 15);
+                            setCurrentTime(newTime);
+                            if (audioRef.current && recording.audioBlob) audioRef.current.currentTime = newTime;
                         }} className="text-gray-400 hover:text-gray-600">
                             <SkipForward className="w-6 h-6" />
                         </button>

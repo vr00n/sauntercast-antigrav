@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { MessageSquare, MapPin, Star, Flag, AlertTriangle, Navigation, Layers, Locate, Globe, Map as MapIcon } from 'lucide-react';
+import { MessageSquare, MapPin, Star, Flag, AlertTriangle, Navigation, Layers, Locate, Globe, Camera, Map as MapIcon } from 'lucide-react';
 
 const MAPBOX_TOKEN = "pk.eyJ1IjoidnIwMG4tbnljc2J1cyIsImEiOiJjbDB5cHhoeHgxcmEyM2ptdXVkczk1M2xlIn0.qq6o-6TMurwke-t1eyetBw";
 
@@ -181,16 +181,22 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
                         }}
                     >
                         <div className="flex flex-col items-center group cursor-pointer hover:scale-110 transition-transform">
-                            <div className="bg-white/90 backdrop-blur px-2 py-1 rounded-md shadow text-xs font-semibold mb-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                {ann.text || ann.type}
+                            <div className="bg-white/90 backdrop-blur px-2 py-1 rounded-md shadow text-xs font-semibold mb-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                {ann.image ? 'Photo' : (ann.text || ann.type)}
                             </div>
                             <div className="text-brand-red bg-white p-1 rounded-full shadow-md">
-                                {ann.type === 'comment' && <MessageSquare size={16} fill="currentColor" className="text-brand-red" />}
-                                {ann.type === 'star' && <Star size={16} fill="currentColor" className="text-yellow-500" />}
-                                {ann.type === 'flag' && <Flag size={16} fill="currentColor" className="text-orange-500" />}
-                                {ann.type === 'alert' && <AlertTriangle size={16} fill="currentColor" className="text-brand-red" />}
-                                {ann.type === 'map-pin' && <MapPin size={16} fill="currentColor" className="text-brand-red" />}
-                                {ann.type === 'icon' && <MapPin size={16} fill="currentColor" className="text-brand-red" />}
+                                {ann.image ? (
+                                    <Camera size={16} fill="currentColor" className="text-blue-500" />
+                                ) : (
+                                    <>
+                                        {ann.type === 'comment' && <MessageSquare size={16} fill="currentColor" className="text-brand-red" />}
+                                        {ann.type === 'star' && <Star size={16} fill="currentColor" className="text-yellow-500" />}
+                                        {ann.type === 'flag' && <Flag size={16} fill="currentColor" className="text-orange-500" />}
+                                        {ann.type === 'alert' && <AlertTriangle size={16} fill="currentColor" className="text-brand-red" />}
+                                        {ann.type === 'map-pin' && <MapPin size={16} fill="currentColor" className="text-brand-red" />}
+                                        {ann.type === 'icon' && <MapPin size={16} fill="currentColor" className="text-brand-red" />}
+                                    </>
+                                )}
                             </div>
                         </div>
                     </Marker>

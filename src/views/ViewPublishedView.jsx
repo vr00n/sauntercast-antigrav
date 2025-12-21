@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { fetchPublishedSaunter } from '../utils/publish';
 import { PlayerView } from './PlayerView';
-import { Lock, Loader2 } from 'lucide-react';
+import { Lock, Loader2, Play } from 'lucide-react';
 
 export const ViewPublishedView = () => {
+    const { id } = useParams();
     const [searchParams] = useSearchParams();
     const dataParam = searchParams.get('data');
 
@@ -16,13 +17,13 @@ export const ViewPublishedView = () => {
     const [attempting, setAttempting] = useState(false);
 
     useEffect(() => {
-        if (dataParam) {
+        if (id || dataParam) {
             loadSaunter();
         } else {
-            setError('No saunter data found in URL');
+            setError('No saunter data found');
             setLoading(false);
         }
-    }, [dataParam]);
+    }, [id, dataParam]);
 
     const loadSaunter = async (pwd = null) => {
         setLoading(true);
@@ -30,10 +31,13 @@ export const ViewPublishedView = () => {
         setAttempting(!!pwd);
 
         try {
-            const data = await fetchPublishedSaunter(dataParam, pwd);
+            // Use the ID (GitHub fetch) or dataParam (URL fetch)
+            const sourceId = id || dataParam;
+            const data = await fetchPublishedSaunter(sourceId, pwd);
             setRecording(data);
             setNeedsPassword(false);
         } catch (err) {
+            console.error("View Error:", err);
             if (err.message === 'PASSWORD_REQUIRED') {
                 setNeedsPassword(true);
             } else if (err.message.includes('Decryption failed')) {
@@ -59,7 +63,7 @@ export const ViewPublishedView = () => {
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
                 <div className="text-center">
                     <Loader2 className="w-12 h-12 animate-spin text-brand-red mx-auto mb-4" />
-                    <p className="text-gray-600">Loading saunter...</p>
+                    <p className="text-gray-600">Loading saunter with audio...</p>
                 </div>
             </div>
         );
@@ -74,7 +78,7 @@ export const ViewPublishedView = () => {
                             <Lock className="w-8 h-8 text-amber-600" />
                         </div>
                         <h1 className="text-2xl font-bold text-gray-900 mb-2">Password Protected</h1>
-                        <p className="text-gray-600">This saunter is private. Enter the password to view.</p>
+                        <p className="text-gray-600">This saunter is encrypted. Enter the password to listen and view.</p>
                     </div>
 
                     <form onSubmit={handlePasswordSubmit} className="space-y-4">
@@ -103,10 +107,10 @@ export const ViewPublishedView = () => {
                             {attempting ? (
                                 <>
                                     <Loader2 className="w-5 h-5 animate-spin" />
-                                    Unlocking...
+                                    Decrypting...
                                 </>
                             ) : (
-                                'Unlock Saunter'
+                                'Unlock & Play'
                             )}
                         </button>
                     </form>
@@ -120,7 +124,7 @@ export const ViewPublishedView = () => {
             <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
                 <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
                     <div className="text-6xl mb-4">😕</div>
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Invalid Share Link</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Not Found</h1>
                     <p className="text-gray-600 mb-6">{error}</p>
                     <a
                         href="/#/"
@@ -134,17 +138,7 @@ export const ViewPublishedView = () => {
     }
 
     if (recording) {
-        // Note: Audio won't be available in shared saunters
-        return (
-            <div>
-                <div className="bg-amber-50 border-b border-amber-200 p-3 text-center">
-                    <p className="text-sm text-amber-800">
-                        <strong>Note:</strong> Audio is not included in shared links (path and annotations only)
-                    </p>
-                </div>
-                <PlayerView initialRecording={recording} />
-            </div>
-        );
+        return <PlayerView initialRecording={recording} />;
     }
 
     return null;

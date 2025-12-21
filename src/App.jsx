@@ -13,6 +13,7 @@ function App() {
         <Route path="/" element={<HomeView />} />
         <Route path="/record" element={<RecorderView />} />
         <Route path="/play/:id" element={<PlayerView />} />
+        <Route path="/view/:id" element={<ViewPublishedView />} />
         <Route path="/view" element={<ViewPublishedView />} />
         <Route path="/about" element={<AboutView />} />
       </Routes>
