@@ -8,15 +8,19 @@ Sauntercast is a location-aware audio recording application that allows users to
 - **Location-Aware Audio**: Records microphone input while tracking GPS coordinates in real-time.
 - **Smart Pause**: Pause and resume recordings without losing synchronization between audio and location.
 - **Smart Clustering**: Automatically filters and clusters GPS points when stationary to prevent map clutter.
-- **Annotations**: Add text notes and **photos** 📸 to specific moments in your journey.
+- **Annotations**: 
+    - Add text notes and **photos** 📸 to specific moments.
+    - **Naming**: Give your saunter a custom title before saving.
+    - **Workflow**: Explicit options to "Save to Library" (offline) or "Publish" (online).
 
 ### 🎧 Playback
-- **Interactive Map**: Watch your path retrace itself on a 3D map as the audio plays.
-- ** synchronized scrubbing**: Jumping to a point in the audio instantly moves the map to that location, and clicking the map jumps the audio to that moment.
-- **Annotation Markers**: View your notes and photos on the map.
+- **Split-Pane Layout**: Resizable split screen with **3D Map** on the left and **Annotation Feed** on the right.
+- **Interactive Feed**: Scroll through a chronological feed of notes and photos. Clicking an item jumps the audio to that exact moment.
+- **Map Interaction**: Clicking a map marker autoscrolls the feed to the relevant note and seeks the audio.
+- ** synchronized scrubbing**: Jumping to a point in the audio instantly moves the map to that location.
 
 ### 🚀 Publishing & Sharing
-- **GitHub Integration**: Publish your saunters directly to a GitHub repository (gh-pages) as a static JSON file.
+- **GitHub Integration**: Publish your saunters directly to a GitHub repository (gh-pages).
 - **Audio Upload**: Audio is converted to Base64 and stored within the JSON, ensuring a single-file portable format.
 - **Security**: 
     - **Client-Side Encryption**: Option to password-protect your saunters using AES-256-GCM.

@@ -30,6 +30,9 @@ export const RecorderView = () => {
     const [showPublishModal, setShowPublishModal] = useState(false);
     const [savedRecording, setSavedRecording] = useState(null);
     const [pendingAnnotation, setPendingAnnotation] = useState(null);
+    const [title, setTitle] = useState('');
+
+    // Annotation state
     const [annotationText, setAnnotationText] = useState('');
     const [annotationImage, setAnnotationImage] = useState(null);
     const [selectedIcon, setSelectedIcon] = useState('comment');
@@ -42,11 +45,22 @@ export const RecorderView = () => {
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    const handleSave = async () => {
+    useEffect(() => {
+        if (startTime && !title) {
+            const date = new Date(startTime);
+            setTitle(`Saunter ${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+        }
+    }, [startTime]);
+
+    const handleSave = async (shouldPublish = false) => {
         if (!audioBlob) return;
         setIsSaving(true);
+
+        const finalTitle = title || `Saunter ${new Date().toLocaleString()}`;
+
         const recording = {
             id: crypto.randomUUID(),
+            title: finalTitle,
             startTime,
             duration,
             locations,
@@ -60,8 +74,12 @@ export const RecorderView = () => {
         setSavedRecording(recording);
         setIsSaving(false);
 
-        // Show publish option
-        setShowPublishModal(true);
+        if (shouldPublish === true) {
+            setShowPublishModal(true);
+        } else {
+            // Optional: feedback
+            alert('Recording saved to local library!');
+        }
     };
 
     const handlePublishComplete = () => {
@@ -266,20 +284,41 @@ export const RecorderView = () => {
                         </button>
                     </div>
                 ) : (
-                    <div className="flex gap-4">
-                        <button
-                            onClick={() => window.location.reload()} // Simple reset
-                            className="flex-1 py-3 rounded-xl font-medium text-gray-600 bg-gray-100"
-                        >
-                            Discard
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            disabled={isSaving}
-                            className="flex-1 py-3 rounded-xl font-bold text-white bg-brand-red flex items-center justify-center gap-2"
-                        >
-                            <Save className="w-5 h-5" /> {isSaving ? 'Saving...' : 'Save Recording'}
-                        </button>
+                    <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs font-bold text-gray-500 uppercase">Title</label>
+                            <input
+                                type="text"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                className="w-full text-lg font-semibold px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-red focus:outline-none"
+                                placeholder="Name your saunter..."
+                            />
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => window.location.reload()}
+                                className="px-4 py-3 rounded-xl font-medium text-gray-600 bg-gray-100 hover:bg-gray-200"
+                            >
+                                Discard
+                            </button>
+                            <button
+                                onClick={() => handleSave(false)}
+                                disabled={isSaving}
+                                className="flex-1 py-3 rounded-xl font-bold text-gray-700 bg-white border border-gray-200 shadow-sm hover:bg-gray-50"
+                            >
+                                Save to Library
+                            </button>
+                            <button
+                                onClick={() => handleSave(true)}
+                                disabled={isSaving}
+                                className="flex-1 py-3 rounded-xl font-bold text-white bg-brand-red shadow-lg shadow-red-200 hover:brightness-110 flex items-center justify-center gap-2"
+                            >
+                                <Globe size={18} />
+                                Publish
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>
