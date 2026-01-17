@@ -6,7 +6,7 @@ import { MessageSquare, MapPin, Star, Flag, AlertTriangle, Navigation, Layers, L
 
 const MAPBOX_TOKEN = "pk.eyJ1IjoidnIwMG4tbnljc2J1cyIsImEiOiJjbDB5cHhoeHgxcmEyM2ptdXVkczk1M2xlIn0.qq6o-6TMurwke-t1eyetBw";
 
-export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick }) => {
+export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick, onAnnotationClick }) => {
     const mapRef = useRef(null);
     const [viewMode, setViewMode] = useState('follow'); // 'follow' | 'overhead'
     const [mapStyle, setMapStyle] = useState('streets-v12'); // 'streets-v12' | 'satellite-streets-v12'
@@ -177,7 +177,7 @@ export const MapDisplay = ({ locations, currentLocation, annotations, onMapClick
                         anchor="bottom"
                         onClick={(e) => {
                             e.originalEvent.stopPropagation();
-                            // Optional: Show popup here
+                            if (onAnnotationClick) onAnnotationClick(ann);
                         }}
                     >
                         <div className="flex flex-col items-center group cursor-pointer hover:scale-110 transition-transform">
