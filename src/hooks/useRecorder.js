@@ -16,6 +16,88 @@ export const useRecorder = () => {
     const chunksRef = useRef([]);
     const timerRef = useRef(null);
     const lastLocationRef = useRef(null); // Ref for immediate access in callbacks
+    const wakeLockRef = useRef(null); // Wake Lock to prevent screen sleep
+    const startTimeRef = useRef(null);
+    const totalPausedDurationRef = useRef(0);
+    const lastLocationAtRef = useRef(0);
+    const geoFallbackTimerRef = useRef(null);
+    const isRecordingRef = useRef(false);
+    const isPausedRef = useRef(false);
+
+    const handleGeoPosition = (position) => {
+        if (!startTimeRef.current) return;
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') return;
+
+        const { latitude, longitude, speed, altitude, accuracy, altitudeAccuracy, heading } = position.coords;
+        const effectiveTimestamp = Date.now() - startTimeRef.current - totalPausedDurationRef.current;
+
+        if (lastLocationRef.current) {
+            const dLat = latitude - lastLocationRef.current.lat;
+            const dLng = longitude - lastLocationRef.current.lng;
+            const dist = Math.sqrt(dLat * dLat + dLng * dLng) * 111000;
+
+            if (accuracy > 20 && dist < 10) return;
+            if (dist < 4) return;
+        }
+
+        const newLoc = {
+            lat: latitude,
+            lng: longitude,
+            timestamp: effectiveTimestamp,
+            speed,
+            altitude,
+            accuracy,
+            altitudeAccuracy,
+            heading
+        };
+
+        lastLocationRef.current = newLoc;
+        lastLocationAtRef.current = Date.now();
+        setLocations((prev) => [...prev, newLoc]);
+    };
+
+    const handleGeoError = (error) => {
+        console.error('Geolocation error:', error);
+    };
+
+    const startGeoWatch = () => {
+        if (!('geolocation' in navigator)) return;
+        if (watchIdRef.current) return;
+        watchIdRef.current = navigator.geolocation.watchPosition(
+            handleGeoPosition,
+            handleGeoError,
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+        );
+    };
+
+    const stopGeoWatch = () => {
+        if (watchIdRef.current) {
+            navigator.geolocation.clearWatch(watchIdRef.current);
+            watchIdRef.current = null;
+        }
+    };
+
+    const startGeoFallback = () => {
+        if (!('geolocation' in navigator)) return;
+        if (geoFallbackTimerRef.current) return;
+        geoFallbackTimerRef.current = setInterval(() => {
+            if (!isRecordingRef.current || isPausedRef.current) return;
+            const lastAt = lastLocationAtRef.current || 0;
+            if (Date.now() - lastAt < 15000) return;
+            navigator.geolocation.getCurrentPosition(
+                handleGeoPosition,
+                handleGeoError,
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+            );
+        }, 10000);
+    };
+
+    const stopGeoFallback = () => {
+        if (geoFallbackTimerRef.current) {
+            clearInterval(geoFallbackTimerRef.current);
+            geoFallbackTimerRef.current = null;
+        }
+    };
 
     const startRecording = async () => {
         try {
@@ -48,54 +130,30 @@ export const useRecorder = () => {
             setIsRecording(true);
             setIsPaused(false);
             setTotalPausedDuration(0);
+            startTimeRef.current = start;
+            totalPausedDurationRef.current = 0;
+            lastLocationAtRef.current = 0;
+            isRecordingRef.current = true;
+            isPausedRef.current = false;
+
+            // Request Wake Lock to keep screen on during recording
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLockRef.current = await navigator.wakeLock.request('screen');
+                    console.log('Wake Lock acquired - screen will stay on during recording');
+
+                    wakeLockRef.current.addEventListener('release', () => {
+                        console.log('Wake Lock released');
+                    });
+                } catch (err) {
+                    console.warn('Wake Lock request failed:', err);
+                }
+            }
 
             // Start location tracking
-            if ('geolocation' in navigator) {
-                lastLocationRef.current = null;
-
-                watchIdRef.current = navigator.geolocation.watchPosition(
-                    (position) => {
-                        // Skip if paused
-                        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') return;
-
-                        const { latitude, longitude, speed, altitude, accuracy, altitudeAccuracy, heading } = position.coords;
-                        // Calculate effective recording time (audio time)
-                        const effectiveTimestamp = Date.now() - start - totalPausedDuration;
-
-                        // Smart Clustering / Filtering
-                        // If we have a last position, check distance and time
-                        if (lastLocationRef.current) {
-                            const dLat = latitude - lastLocationRef.current.lat;
-                            const dLng = longitude - lastLocationRef.current.lng;
-                            // roughly meters conversion
-                            const dist = Math.sqrt(dLat * dLat + dLng * dLng) * 111000;
-
-                            // "Smart Cluster": If user is stopped (< 5m move) for a while, we don't need new points.
-                            // If accuracy is bad (>20m) and distance is small, ignore it.
-                            if (accuracy > 20 && dist < 10) return;
-
-                            // Standard jitter filter
-                            if (dist < 4) return;
-                        }
-
-                        const newLoc = {
-                            lat: latitude,
-                            lng: longitude,
-                            timestamp: effectiveTimestamp,
-                            speed,
-                            altitude,
-                            accuracy,
-                            altitudeAccuracy,
-                            heading
-                        };
-
-                        lastLocationRef.current = newLoc;
-                        setLocations((prev) => [...prev, newLoc]);
-                    },
-                    (error) => console.error('Geolocation error:', error),
-                    { enableHighAccuracy: true, maximumAge: 0 }
-                );
-            }
+            lastLocationRef.current = null;
+            startGeoWatch();
+            startGeoFallback();
 
             // Start timer
             // Use Date.now() diff to prevent drift, minus totalPausedTime
@@ -115,6 +173,7 @@ export const useRecorder = () => {
             mediaRecorderRef.current.pause();
             setIsPaused(true);
             setPauseTime(Date.now());
+            isPausedRef.current = true;
         }
     };
 
@@ -124,7 +183,9 @@ export const useRecorder = () => {
             setIsPaused(false);
             const pausedDuration = Date.now() - pauseTime;
             setTotalPausedDuration(prev => prev + pausedDuration);
+            totalPausedDurationRef.current += pausedDuration;
             setPauseTime(null);
+            isPausedRef.current = false;
         }
     };
 
@@ -132,23 +193,32 @@ export const useRecorder = () => {
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
             mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-        }
+            setIsRecording(false);
+            setIsPaused(false);
+            isRecordingRef.current = false;
+            isPausedRef.current = false;
 
-        if (watchIdRef.current !== null) {
-            navigator.geolocation.clearWatch(watchIdRef.current);
-        }
+            stopGeoWatch();
+            stopGeoFallback();
 
-        if (timerRef.current) {
-            clearInterval(timerRef.current);
-        }
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
 
-        setIsRecording(false);
-        setIsPaused(false);
+            // Release Wake Lock when recording stops
+            if (wakeLockRef.current) {
+                wakeLockRef.current.release().then(() => {
+                    wakeLockRef.current = null;
+                    console.log('Wake Lock released on stop');
+                }).catch(err => console.warn('Wake Lock release failed:', err));
+            }
+        }
     };
 
     const addAnnotation = (type, text = '', customTimestamp = null, image = null) => {
         if (!isRecording || !startTime) return;
-        // If custom timestamp is provided (e.g. from UI capture), use it. 
+        // If custom timestamp is provided (e.g. from UI capture), use it.
         // Otherwise calculate current effective time.
         // Note: totalPausedDuration state is stale in closure? 
         // No, verify if addAnnotation closes over outdated state.
@@ -157,7 +227,7 @@ export const useRecorder = () => {
 
         let timestamp = customTimestamp;
         if (timestamp === null) {
-            timestamp = Date.now() - startTime - totalPausedDuration;
+            timestamp = Date.now() - startTimeRef.current - totalPausedDurationRef.current;
         }
 
         // Get the last known location or current if available
@@ -182,7 +252,34 @@ export const useRecorder = () => {
         setPauseTime(null);
         setTotalPausedDuration(0);
         chunksRef.current = [];
+        startTimeRef.current = null;
+        totalPausedDurationRef.current = 0;
+        lastLocationAtRef.current = 0;
     };
+
+    // Handle visibility change to re-acquire wake lock
+    useEffect(() => {
+        const handleVisibilityChange = async () => {
+            if (document.visibilityState === 'visible' && isRecording && !wakeLockRef.current) {
+                if ('wakeLock' in navigator) {
+                    try {
+                        wakeLockRef.current = await navigator.wakeLock.request('screen');
+                        console.log('Wake Lock re-acquired after visibility change');
+                    } catch (err) {
+                        console.warn('Failed to re-acquire Wake Lock:', err);
+                    }
+                }
+            }
+
+            if (document.visibilityState === 'visible' && isRecordingRef.current) {
+                startGeoWatch();
+                startGeoFallback();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [isRecording]);
 
     return {
         isRecording,
