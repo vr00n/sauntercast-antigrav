@@ -135,6 +135,7 @@ export const HomeView = () => {
                         type="file"
                         ref={fileInputRef}
                         onChange={handleImport}
+                        accept="*/*"
                         className="hidden"
                     />
                     <button
